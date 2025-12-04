@@ -212,6 +212,10 @@ export default{
         if (this.list[index]) this.list[index]._actionsActive = true;
         this.doDelete(index);
       },
+      activateThenDownload(index){
+        if (this.list[index]) this.list[index]._actionsActive = true;
+        this.doDownload(index);
+      },
     doCopy(e) {
         // mark actions active when copying from overlay
         if (this.list[e]) this.list[e]._actionsActive = true;
@@ -220,6 +224,17 @@ export default{
         },()=>{
           mdui.snackbar('复制失败')
         })
+    },
+    doDownload(e) {
+      const item = this.list[e];
+      const url = `/api/file/${item.name}`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = item.metadata.originalName || item.name;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     },
     async doDelete(e) {
       const item = this.list[e];
@@ -334,6 +349,9 @@ export default{
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
                     <i class="mdui-icon material-icons">content_copy</i>
                   </button>
+                  <button class="overlay-btn" @click.stop="activateThenDownload(index)">
+                    <i class="mdui-icon material-icons">get_app</i>
+                  </button>
                   <button class="overlay-btn delete" @click.stop="activateThenDelete(index)">
                     <i class="mdui-icon material-icons">delete</i>
                   </button>
@@ -347,6 +365,9 @@ export default{
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
                     <i class="mdui-icon material-icons">content_copy</i>
                   </button>
+                  <button class="overlay-btn" @click.stop="activateThenDownload(index)">
+                    <i class="mdui-icon material-icons">get_app</i>
+                  </button>
                   <button class="overlay-btn delete" @click.stop="activateThenDelete(index)">
                     <i class="mdui-icon material-icons">delete</i>
                   </button>
@@ -357,13 +378,15 @@ export default{
                   <div class="left-info">
                     <div class="category-tag" :title="item.metadata.category">
                       <i class="mdui-icon material-icons" style="font-size:16px">{{ getFileIcon(item.metadata.category) }}</i>
-                      <span>{{ item.metadata.category }}</span>
                     </div>
                     <div class="file-name-scroll" :title="item.metadata.originalName || item.name">{{ item.metadata.originalName || item.name }}</div>
                   </div>
                   <div class="right-actions">
                     <button class="icon-btn" @click="activateThenCopy(index)" title="复制">
                       <i class="mdui-icon material-icons">content_copy</i>
+                    </button>
+                    <button class="icon-btn" @click="activateThenDownload(index)" title="下载">
+                      <i class="mdui-icon material-icons">get_app</i>
                     </button>
                     <button class="icon-btn" @click="activateThenDelete(index)" title="删除" style="color:#d32f2f">
                       <i class="mdui-icon material-icons">delete</i>
