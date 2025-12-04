@@ -196,8 +196,22 @@ export default{
         };
         return iconMap[category] || 'insert_drive_file';
     },
-    display(e){
-      const gallery = new Viewer(e);
+    display(e, fileName){
+      const gallery = new Viewer(e, {
+        title: function(image) {
+          return fileName || image.alt || '';
+        },
+        toolbar: {
+          zoomIn: 1,
+          zoomOut: 1,
+          oneToOne: 1,
+          reset: 1,
+          rotateLeft: 1,
+          rotateRight: 1,
+          flipHorizontal: 1,
+          flipVertical: 1,
+        }
+      });
       gallery.show();
     },
       toggleListActions(index){
@@ -343,7 +357,7 @@ export default{
               <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image">
                 <div class="image-bg" :style="{ backgroundImage: 'url(/api/file/' + item.name + ')' }"></div>
                 <div class="image-wrapper">
-                  <LazyImg :url="'/api/file/'+item.name" @click="display($event.target)" class="preview-img"></LazyImg>
+                  <LazyImg :url="'/api/file/'+item.name" @click="display($event.target, item.metadata.originalName || item.name)" class="preview-img"></LazyImg>
                 </div>
                 <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">

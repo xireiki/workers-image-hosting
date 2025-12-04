@@ -331,8 +331,22 @@ export default{
       };
       return iconMap[category] || 'insert_drive_file';
     },
-    display(e){
-      const gallery = new Viewer(e);
+    display(e, fileName){
+      const gallery = new Viewer(e, {
+        title: function(image) {
+          return fileName || image.alt || '';
+        },
+        toolbar: {
+          zoomIn: 1,
+          zoomOut: 1,
+          oneToOne: 1,
+          reset: 1,
+          rotateLeft: 1,
+          rotateRight: 1,
+          flipHorizontal: 1,
+          flipVertical: 1,
+        }
+      });
       gallery.show();
     }
   },
@@ -389,8 +403,8 @@ export default{
               <div v-if="isImage(item.category)" class="mdui-card-media media-image">
                 <div class="image-bg" :style="{backgroundImage: `url(${item.localData || item.link})`}"></div>
                 <div class="image-wrapper">
-                  <img v-if="item.localData" :src="item.localData" @click="display($event.target)" class="preview-img" />
-                  <LazyImg v-else :url="item.link" @click="display($event.target)" class="preview-img" />
+                  <img v-if="item.localData" :src="item.localData" @click="display($event.target, item.name || 'file')" class="preview-img" />
+                  <LazyImg v-else :url="item.link" @click="display($event.target, item.name || 'file')" class="preview-img" />
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
