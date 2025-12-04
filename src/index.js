@@ -8,6 +8,17 @@ import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
 const PASS = globalThis.PASS || null; // 若未提供则为 null
 
 const router = new Router();
+
+// SHA-256 哈希函数
+async function hashPassword(password) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(password);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hash));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+}
+
 async function randomString(len) { // 随机链接生成
   len = len || 6;
   let $chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';    // 默认去掉了容易混淆的字符oOLl,9gq,Vv,Uu,I1
@@ -171,20 +182,31 @@ router.get('/api/file/:p', async ({ req, res }) => {
 router.get('/query', async ({ req, res }) => {
   const paramas = req.url.searchParams;
   const provided = paramas.get('pass');
-  if (provided && PASS && provided === PASS) {
-    const key = await LINK.list();
-    res.body = key;
-  } else {
-    res.status = 403;
-    res.body = { info: '密码错误' };
+  if (provided && PASS) {
+    const hashedPass = await hashPassword(PASS);
+    if (provided === hashedPass) {
+      const key = await LINK.list();
+      res.body = key;
+      return;
+    }
   }
+  res.status = 403;
+  res.body = { info: '密码错误' };
 });
 
 // 删除文件接口
 router.delete('/api/file/:p', async ({ req, res }) => {
   // 删除需要密码验证（使用 PASS 环境变量）
   const provided = req.url.searchParams.get('pass');
-  if (!provided || !PASS || provided !== PASS) {
+  if (!provided || !PASS) {
+    res.status = 403;
+    res.headers = header;
+    res.body = { info: '密码错误，无法删除' };
+    return;
+  }
+  
+  const hashedPass = await hashPassword(PASS);
+  if (provided !== hashedPass) {
     res.status = 403;
     res.headers = header;
     res.body = { info: '密码错误，无法删除' };

@@ -61,13 +61,10 @@ export default{
       
       // 使用防抖处理 resize
       this._resizeHandler = () => {
-        console.log('[resize] 窗口 resize 事件触发');
         if (this.resizeTimer) {
-          console.log('[resize] 清除之前的定时器');
           clearTimeout(this.resizeTimer);
         }
         this.resizeTimer = setTimeout(() => {
-          console.log('[resize] 防抖等待结束，执行 calculateBreakpoints');
           this.calculateBreakpoints();
         }, 150);
       };
@@ -84,10 +81,6 @@ export default{
     },
     methods:{
     calculateBreakpoints(){
-      console.log('[calculateBreakpoints] 开始计算');
-      console.log('[calculateBreakpoints] 当前窗口宽度:', window.innerWidth);
-      console.log('[calculateBreakpoints] DPI:', window.devicePixelRatio);
-      
       // 获取设备像素比（DPI 相关）
       const dpr = window.devicePixelRatio || 1;
       // 获取视口宽度
@@ -154,10 +147,6 @@ export default{
         0: { rowPerView: Math.max(defaultCols, 1) },
         ...breakpoints
       }));
-
-      console.log('[calculateBreakpoints] 当前窗口对应列数:', defaultCols);
-      console.log('[calculateBreakpoints] 新的 breakpoints:', JSON.stringify(this.breakpoints));
-      console.log('[calculateBreakpoints] 依赖插件自动重新布局');
     },
     file(){
       let file_id=this.$refs.inp
