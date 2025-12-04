@@ -233,6 +233,66 @@ router.delete('/api/file/:p', async ({ req, res }) => {
   }
 });
 
+// 随机获取文件接口
+router.get('/api/random', async ({ req, res }) => {
+  const params = req.url.searchParams;
+  const provided = params.get('pass');
+  const type = params.get('type'); // 可选: image, video, sound, document
+  
+  // 验证密码
+  if (!provided || !PASS) {
+    res.status = 403;
+    res.headers = header;
+    res.body = { info: '密码错误' };
+    return;
+  }
+  
+  const hashedPass = await hashPassword(PASS);
+  if (provided !== hashedPass) {
+    res.status = 403;
+    res.headers = header;
+    res.body = { info: '密码错误' };
+    return;
+  }
+  
+  try {
+    // 获取所有文件列表
+    const allFiles = await LINK.list();
+    if (!allFiles.keys || allFiles.keys.length === 0) {
+      res.status = 404;
+      res.headers = header;
+      res.body = { info: '没有可用文件' };
+      return;
+    }
+    
+    // 根据 type 过滤文件
+    let filteredFiles = allFiles.keys;
+    if (type) {
+      filteredFiles = allFiles.keys.filter(file => {
+        return file.metadata && file.metadata.category === type;
+      });
+      
+      if (filteredFiles.length === 0) {
+        res.status = 404;
+        res.headers = header;
+        res.body = { info: `没有找到类型为 ${type} 的文件` };
+        return;
+      }
+    }
+    
+    // 随机选择一个文件
+    const randomIndex = Math.floor(Math.random() * filteredFiles.length);
+    const randomFile = filteredFiles[randomIndex];
+    
+    // 重定向到该文件
+    return res.redirect(`/api/file/${randomFile.name}`);
+  } catch (err) {
+    res.status = 500;
+    res.headers = header;
+    res.body = { info: '获取文件失败: ' + err.message };
+  }
+});
+
 
 // Compose the application
 const app = new Application();
