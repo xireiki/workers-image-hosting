@@ -1,119 +1,184 @@
 import {
-    Application,
-    Router,
-    normalizePathnameMiddleware
-  } from '@cfworker/web';
+  Application,
+  Router,
+  normalizePathnameMiddleware
+} from '@cfworker/web';
 import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
-const pass='123'//默认登录密码
-/*
-默认密码都是123
-*/
+// 从环境中读取密码（在 Cloudflare Worker 中通过 Wrangler 的 binding `PASS` 注入）
+const PASS = globalThis.PASS || null; // 若未提供则为 null
 
-  const router = new Router();
-  async function randomString(len) { //随机链接生成
-    　　len = len || 6;
-    　　let $chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';    /****默认去掉了容易混淆的字符oOLl,9gq,Vv,Uu,I1****/
-    　　let maxPos = $chars.length;
-    　　let result = '';
-    　　for (let i = 0; i < len; i++) {
-    　　　　result += $chars.charAt(Math.floor(Math.random() * maxPos));
-    　　}
-    　　return result;
-    }
-    
-    //静态资源路由
-     addEventListener("fetch", async (event) => {
-      let pathname = new URL(event.request.url)
-      let asset= new RegExp('/assets/.*','i')
-      let index=new RegExp('/index.*','i')
-      let list=new RegExp('/list.*','i')
-      if (asset.test(pathname.pathname)||index.test(pathname.pathname)||list.test(pathname.pathname)) {
-        event.respondWith(handleEvent(event));
-      }
-    });
-    
-    async function handleEvent(event) {
-      return getAssetFromKV(event)
+const router = new Router();
+async function randomString(len) { // 随机链接生成
+  len = len || 6;
+  let $chars = 'ABCDEFGHJKMNPQRSTWXYZabcdefhijkmnprstwxyz2345678';    // 默认去掉了容易混淆的字符oOLl,9gq,Vv,Uu,I1
+  let maxPos = $chars.length;
+  let result = '';
+  for (let i = 0; i < len; i++) {
+    result += $chars.charAt(Math.floor(Math.random() * maxPos));
   }
-//首页跳转
-  router.get('/',({res})=>{
-    res.redirect('/index.html')
-  })
-  
+  return result;
+}
 
-  let header=new Headers()
-      header.set('access-control-allow-origin', '*')
-  //上传api
-router.post(
-    '/api', async ({req,res})=> {
-      let form=req.body.formData()
-      let img=(await form).get('img')
-      const img_check=new RegExp("(.*?)\.(png|jpe?g|gif|bmp|psd|tiff|tga|webp)","i")
-      
+// 静态资源路由 — 使用标准 Worker（通过 Application 中间件）处理静态资源
+async function handleAssetRequest(request) {
+  return getAssetFromKV({ request });
+}
 
-      //文件格式验证
-        if (img_check.test(img.name)) {
-        
-          let url=await randomString()
-        let check=await LINK.get(url)
-        if (check!==null) {
-          url=await randomString()
-        }
-      let stream=img.stream()
-        await LINK.put(url,stream,{
-          metadata:{
-            size:img.size,
-            name:url,
-            type:img.type,
-            date:new Date().getTime()
-          }
-        })
-        res.headers=header
-        res.body={
-          link: req.url+'/img/'+url
-        }
-        }
-        else{
-          res.status=400
-          res.headers=header
-          res.body={
-            info:'非图片文件404'
-          }
-        }
+// 首页直接返回静态文件
+router.get('/', async ({ req, res }) => {
+  try {
+    const requestUrl = new URL(req.url.toString ? req.url.toString() : String(req.url));
+    requestUrl.pathname = '/index.html';
+    const request = new Request(requestUrl.toString(), { method: 'GET', headers: req.headers || {} });
+    const assetResponse = await handleAssetRequest(request);
+    res.status = assetResponse.status;
+    res.headers = new Headers(assetResponse.headers || {});
+    res.body = assetResponse.body;
+  } catch (e) {
+    res.status = 500;
+    res.body = { info: '无法返回首页' };
   }
-  );
+});
 
-  //获取图片
-  router.get('/api/img/:p', async ({req,res})=>{
-    let body=await LINK.get(req.params.p,{cacheTtl:864000,type:"stream"})
-    let {metadata:{type,date,size}}=await LINK.getWithMetadata(req.params.p,{ type: "text" });
-    if (req.headers.has('If-None-Match')) {
-      return res.status=304
-      
-    }
-    res.headers=header
-    res.headers.set('Cache-Control','public, max-age=864000')
-    res.type=type
-    res.etag=size
-    res.body=body
-  })  
+// /list 直接返回 list.html
+router.get('/list', async ({ req, res }) => {
+  try {
+    const requestUrl = new URL(req.url.toString ? req.url.toString() : String(req.url));
+    requestUrl.pathname = '/list.html';
+    const request = new Request(requestUrl.toString(), { method: 'GET', headers: req.headers || {} });
+    const assetResponse = await handleAssetRequest(request);
+    res.status = assetResponse.status;
+    res.headers = new Headers(assetResponse.headers || {});
+    res.body = assetResponse.body;
+  } catch (e) {
+    res.status = 500;
+    res.body = { info: '无法返回列表页' };
+  }
+});
 
-  //简易登陆验证
-  router.get('/query',async ({req,res})=>{
-    const paramas=req.url.searchParams
-    if (paramas.get('pass')==pass) {
-      const key=await LINK.list()
-    res.body=key
-    }
-    else{
-      res.status=400
-      res.body={info:'密码错误'}
-    }
-  })
-  
 
-  // Compose the application
-  new Application()
-  .use(normalizePathnameMiddleware)
-  .use(router.middleware)
-  .listen();
+let header = new Headers()
+header.set('access-control-allow-origin', '*')
+
+// 上传api（支持多种文件类型，并分类为 image/document/video/sound）
+router.post('/api', async ({ req, res }) => {
+  const form = req.body.formData();
+  const file = (await form).get('img');
+
+  if (!file || !file.name) {
+    res.status = 400;
+    res.headers = header;
+    res.body = { info: '未提供文件' };
+    return;
+  }
+
+  const mime = (file.type || '').toLowerCase();
+  let category = 'other';
+
+  if (mime.startsWith('image/')) category = 'image';
+  else if (mime.startsWith('video/')) category = 'video';
+  else if (mime.startsWith('audio/')) category = 'sound';
+  else if (mime.startsWith('application/') || mime.startsWith('text/')) category = 'document';
+  else {
+    // fallback to extension-based classification
+    const extMatch = file.name.match(/\.([^.]+)$/);
+    const ext = extMatch ? extMatch[1].toLowerCase() : '';
+    const docExt = ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','csv','rtf','odt'];
+    const videoExt = ['mp4','mkv','webm','mov','avi','flv','wmv'];
+    const audioExt = ['mp3','wav','ogg','m4a','flac','aac'];
+    const imageExt = ['png','jpg','jpeg','gif','bmp','webp','svg','tiff'];
+
+    if (videoExt.includes(ext)) category = 'video';
+    else if (audioExt.includes(ext)) category = 'sound';
+    else if (docExt.includes(ext)) category = 'document';
+    else if (imageExt.includes(ext)) category = 'image';
+  }
+
+  let url = await randomString();
+  let check = await LINK.get(url);
+  if (check !== null) {
+    url = await randomString();
+  }
+
+  const stream = file.stream();
+  await LINK.put(url, stream, {
+    metadata: {
+      size: file.size,
+      name: url,
+      type: file.type,
+      date: new Date().getTime(),
+      category: category
+    }
+  });
+
+  res.headers = header;
+  res.body = {
+    link: req.url + '/file/' + url,
+    category: category
+  };
+});
+
+// 获取文件（返回二进制流并在头部包含 category）
+router.get('/api/file/:p', async ({ req, res }) => {
+  const body = await LINK.get(req.params.p, { cacheTtl: 864000, type: "stream" });
+  const { metadata } = await LINK.getWithMetadata(req.params.p, { type: "text" });
+  const type = metadata && metadata.type ? metadata.type : 'application/octet-stream';
+  const size = metadata && metadata.size ? metadata.size : null;
+  const category = metadata && metadata.category ? metadata.category : 'other';
+
+  if (req.headers.has('If-None-Match')) {
+    res.status = 304;
+    return;
+  }
+
+  res.headers = header;
+  res.headers.set('Cache-Control', 'public, max-age=864000');
+  res.headers.set('Content-Type', type);
+  res.headers.set('X-Category', category);
+  if (size !== null) res.etag = size;
+  res.body = body;
+});
+
+// 简易登陆验证
+router.get('/query', async ({ req, res }) => {
+  const paramas = req.url.searchParams;
+  const provided = paramas.get('pass');
+  if (provided && PASS && provided === PASS) {
+    const key = await LINK.list();
+    res.body = key;
+  } else {
+    res.status = 400;
+    res.body = { info: '密码错误' };
+  }
+});
+
+
+// Compose the application
+const app = new Application();
+
+// 在路由之前添加静态资源处理中间件（替代 Service Worker 的 fetch 侦听）
+app.use(async ({ req, res }, next) => {
+  const pathname = req.url && req.url.pathname ? req.url.pathname : (new URL(req.url)).pathname;
+  const asset = new RegExp('/assets/.*', 'i');
+  const index = new RegExp('/index.*', 'i');
+  const list = new RegExp('/list.*', 'i');
+  if (asset.test(pathname) || index.test(pathname) || list.test(pathname)) {
+    try {
+      const requestUrl = req.url && req.url.toString ? req.url.toString() : String(req.url);
+      const request = new Request(requestUrl, {
+        method: req.method || 'GET',
+        headers: req.headers || {}
+      });
+      const assetResponse = await handleAssetRequest(request);
+      res.status = assetResponse.status;
+      res.headers = new Headers(assetResponse.headers || {});
+      res.body = assetResponse.body;
+      return;
+    } catch (e) {
+      // asset handler failed -> fallthrough to router
+    }
+  }
+  await next();
+});
+
+app.use(normalizePathnameMiddleware).use(router.middleware).listen();

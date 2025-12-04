@@ -1,9 +1,9 @@
-name = "img"
+name = "img-hosting"
 main = "./src/index.js"
 compatibility_date = "2022-11-08"
 
 kv_namespaces = [
-  { binding = "LINK", id = "d7d86f2a1a2a4094a7f26945d6871e29",preview_id='d7d86f2a1a2a4094a7f26945d6871e29'}
+  { binding = "LINK", id = "9dcf50ad4e3647b38cc245ac977b2cb7" }
 ]
 [site]
 bucket = "./static/dist"
