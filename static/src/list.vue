@@ -252,13 +252,23 @@ export default{
     },
     async doDelete(e) {
       const item = this.list[e];
-      if (!confirm(`确定要删除文件 "${item.metadata.originalName || item.name}" 吗？`)) {
+      if (!item) {
+        mdui.alert('文件不存在');
         return;
       }
+      // item.name 是 KV 的 key (随机生成的唯一标识)
+      // item.metadata.originalName 是用户上传的原始文件名
+      const kvKey = item.name; // 这是 KV 存储的 key
+      const displayName = item.metadata.originalName || item.name;
+      
+      if (!confirm(`确定要删除文件 "${displayName}" 吗？`)) {
+        return;
+      }
+      
       // 获取或提示密码（使用缓存）
       this.getPassCache().then(async pass => {
         const hashedPass = await this.hashPassword(pass);
-        const deleteUrl = `/api/file/${item.name}?pass=${encodeURIComponent(hashedPass)}`;
+        const deleteUrl = `/api/file/${kvKey}?pass=${encodeURIComponent(hashedPass)}`;
         return fetch(deleteUrl, { method: 'DELETE' });
       })
       .then(response => {
@@ -269,8 +279,12 @@ export default{
       })
       .then(data => {
         mdui.alert('文件已删除');
-        this.list.splice(e, 1);
-        localStorage.setItem('list_data', JSON.stringify(this.list));
+        // 通过 KV key 查找并删除，避免使用可能失效的索引
+        const index = this.list.findIndex(item => item.name === kvKey);
+        if (index !== -1) {
+          this.list.splice(index, 1);
+          localStorage.setItem('list_data', JSON.stringify(this.list));
+        }
       })
       .catch(err => {
         mdui.alert('删除失败：请稍后重试');
@@ -350,6 +364,7 @@ export default{
           :breakpoints="breakpoints" 
           :gutter="16"
           :hasAroundGutter="true"
+          :rowKey="'name'"
           id="images"
         >
           <template #item="{ item, url, index }">

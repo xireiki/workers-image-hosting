@@ -303,8 +303,14 @@ export default{
     doDelete(e) {
       const item = this.file_info[e];
       if (!item) return;
-      if (!confirm(`确定要删除文件 "${item.name || item.link}" 吗？`)) return;
-      const deleteUrl = `/api/file/${item.name}`;
+      // 从 link 中提取文件名 (link格式: /api/file/filename)
+      const fileName = item.link ? item.link.split('/').pop() : item.name;
+      if (!fileName) {
+        mdui.alert('无法获取文件名');
+        return;
+      }
+      if (!confirm(`确定要删除文件 "${item.name || fileName}" 吗？`)) return;
+      const deleteUrl = `/api/file/${fileName}`;
       fetch(deleteUrl, { method: 'DELETE' })
         .then(response => {
           if (response.ok) return response.json();
