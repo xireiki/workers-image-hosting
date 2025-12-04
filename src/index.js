@@ -130,6 +130,7 @@ router.post('/api', async ({ req, res }) => {
     metadata: {
       size: file.size,
       name: url,
+      originalName: file.name,
       type: file.type,
       date: new Date().getTime(),
       category: category
@@ -172,8 +173,39 @@ router.get('/query', async ({ req, res }) => {
     const key = await LINK.list();
     res.body = key;
   } else {
-    res.status = 400;
+    res.status = 403;
     res.body = { info: '密码错误' };
+  }
+});
+
+// 删除文件接口
+router.delete('/api/file/:p', async ({ req, res }) => {
+  // 删除需要密码验证（使用 PASS 环境变量）
+  const provided = req.url.searchParams.get('pass');
+  if (!provided || !PASS || provided !== PASS) {
+    res.status = 403;
+    res.headers = header;
+    res.body = { info: '密码错误，无法删除' };
+    return;
+  }
+
+  const fileKey = req.params.p;
+  if (!fileKey) {
+    res.status = 400;
+    res.headers = header;
+    res.body = { info: '文件键不存在' };
+    return;
+  }
+
+  try {
+    await LINK.delete(fileKey);
+    res.status = 200;
+    res.headers = header;
+    res.body = { info: '文件已删除' };
+  } catch (err) {
+    res.status = 500;
+    res.headers = header;
+    res.body = { info: '删除失败: ' + err.message };
   }
 });
 

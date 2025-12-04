@@ -2,3 +2,4 @@ node_modules
 static/node_modules
 static/dist
 .wrangler/
+.dev.vars

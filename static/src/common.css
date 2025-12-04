@@ -1,0 +1,223 @@
+/* 通用样式 */
+.main {
+  flex: 1;
+  padding: 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* 卡片样式 */
+.card-min {
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mdui-card-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+/* 图片容器 - 关键：让容器适应图片高度 */
+.media-image {
+  padding: 0;
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.image-wrapper {
+  position: relative;
+  z-index: 2;
+  display: block;
+  line-height: 0;
+}
+
+/* 背景模糊层 */
+.image-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  filter: blur(8px);
+  opacity: 0.3;
+  z-index: 0;
+}
+
+/* 图片样式 - 保持原始宽高比 */
+.preview-img {
+  max-width: 100% !important;
+  height: auto !important;
+  object-fit: contain;
+  display: block;
+  cursor: pointer;
+  background: transparent;
+}
+
+/* 覆盖 LazyImg 组件的默认样式 */
+.lazy__img[lazy=loading],
+.lazy__img[lazy=loaded],
+.lazy__img[lazy=error] {
+  height: auto !important;
+  max-width: 100% !important;
+}
+
+/* 操作按钮层 */
+.overlay-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 6;
+  opacity: 0.5;
+  transition: opacity 0.15s ease;
+}
+
+.overlay-actions.active {
+  opacity: 1;
+}
+
+.overlay-actions .overlay-btn {
+  background: rgba(255, 255, 255, 0.95);
+  border: none;
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+}
+
+.overlay-actions .overlay-btn i {
+  font-size: 16px;
+}
+
+.overlay-actions .overlay-btn.delete {
+  background: rgba(211, 47, 47, 0.95);
+  color: #fff;
+}
+
+/* 非图片文件图标 */
+.media-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  min-height: 200px;
+  position: relative;
+}
+
+.file-icon-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.file-icon-container .mdui-icon {
+  font-size: 64px;
+}
+
+/* 卡片信息区 */
+.card-info {
+  padding: 8px;
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+.info-row.info-line {
+  justify-content: space-between;
+}
+
+.left-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.category-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.file-name-scroll {
+  flex: 1;
+  font-size: 12px;
+  color: #333;
+  white-space: nowrap;
+  overflow: auto;
+  min-width: 0;
+  max-width: calc(100% - 60px);
+}
+
+.file-name-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.file-name-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.right-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 响应式调整 */
+@media (max-width: 600px) {
+  .overlay-actions {
+    display: flex;
+  }
+  
+  .right-actions {
+    display: none;
+  }
+  
+  .info-row.info-line {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .left-info {
+    width: 100%;
+    gap: 8px;
+  }
+  
+  .file-name-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}

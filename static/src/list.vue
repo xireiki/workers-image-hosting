@@ -3,6 +3,7 @@ import { LazyImg, Waterfall } from 'vue-waterfall-plugin-next'
 import Loading from 'vue-loading-overlay';
 import 'vue-loading-overlay/dist/css/index.css';
 import 'vue-waterfall-plugin-next/style.css'
+import './common.css'
 import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.js'
 export default{
     data(){
@@ -10,22 +11,129 @@ export default{
         list:[],
         auth:true,
         pass:'',
-        breakpoints: {
-  1200: { //当屏幕宽度小于等于1200
-    rowPerView: 4,
-  },
-  800: { //当屏幕宽度小于等于800
-    rowPerView: 3,
-  },
-  500: { //当屏幕宽度小于等于500
-    rowPerView: 2,
-  }
-}
+        loading:false,
+        cacheExpiry: 30 * 60 * 1000,
+        breakpoints: {},
+        resizeTimer: null
         }
     },
+    mounted(){
+      // 初始化自适应布局
+      this.calculateBreakpoints();
+      
+      const cachedPass = localStorage.getItem('list_pass');
+      const passExpiry = localStorage.getItem('list_pass_expiry');
+      const cachedList = localStorage.getItem('list_data');
+      
+      if (cachedPass && passExpiry && parseInt(passExpiry) > Date.now()) {
+        this.pass = cachedPass;
+        this.auth = false;
+        if (cachedList) {
+          this.list = JSON.parse(cachedList);
+        }
+      }
+      // 点击页面其他位置时关闭 overlay 按钮
+      this._docClickHandler = (e) => {
+        if (e.target.closest && e.target.closest('.image-wrapper')) return;
+        this.list.forEach(it => { if (it._actionsActive) it._actionsActive = false; });
+      };
+      document.addEventListener('click', this._docClickHandler);
+      
+      // 使用防抖处理 resize
+      this._resizeHandler = () => {
+        console.log('[resize] 窗口 resize 事件触发');
+        if (this.resizeTimer) {
+          console.log('[resize] 清除之前的定时器');
+          clearTimeout(this.resizeTimer);
+        }
+        this.resizeTimer = setTimeout(() => {
+          console.log('[resize] 防抖等待结束，执行 calculateBreakpoints');
+          this.calculateBreakpoints();
+        }, 150);
+      };
+      window.addEventListener('resize', this._resizeHandler);
+    },
+    beforeUnmount(){
+      if (this._docClickHandler) document.removeEventListener('click', this._docClickHandler);
+      if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+      if (this.resizeTimer) clearTimeout(this.resizeTimer);
+    },
     methods:{
+      calculateBreakpoints(){
+        console.log('[calculateBreakpoints] 开始计算');
+        console.log('[calculateBreakpoints] 当前窗口宽度:', window.innerWidth);
+        console.log('[calculateBreakpoints] DPI:', window.devicePixelRatio);
+        
+        // 获取设备像素比（DPI 相关）
+        const dpr = window.devicePixelRatio || 1;
+        // 获取视口宽度
+        const viewportWidth = window.innerWidth;
+        
+        // 定义理想的卡片宽度范围（单位：px）
+        // 考虑 DPI：高 DPI 设备上可以显示更多细节
+        const minCardWidth = 180 / Math.max(dpr * 0.8, 1); // 最小卡片宽度
+        const idealCardWidth = 280 / Math.max(dpr * 0.8, 1); // 理想卡片宽度
+        const maxCardWidth = 400 / Math.max(dpr * 0.8, 1); // 最大卡片宽度
+        
+        // 卡片间距
+        const gutter = 16;
+        
+        // 计算可以容纳的列数
+        const calculateColumns = (width) => {
+          // 尝试不同的列数，找到最接近理想卡片宽度的配置
+          let bestCols = 1;
+          let bestDiff = Infinity;
+          
+          for (let cols = 1; cols <= 8; cols++) {
+            const totalGutter = gutter * (cols - 1);
+            const availableWidth = width - totalGutter;
+            const cardWidth = availableWidth / cols;
+            
+            // 如果卡片宽度小于最小值，跳过
+            if (cardWidth < minCardWidth) continue;
+            
+            // 如果卡片宽度超过最大值，且列数大于1，选择更多列
+            if (cardWidth > maxCardWidth && cols < 8) continue;
+            
+            // 计算与理想宽度的差距
+            const diff = Math.abs(cardWidth - idealCardWidth);
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestCols = cols;
+            }
+          }
+          
+          return bestCols;
+        };
+        
+        // 生成断点配置
+        const breakpoints = {};
+        const breakpointWidths = [400, 600, 800, 1000, 1200, 1400, 1600, 1920, 2560];
+        
+        breakpointWidths.forEach(bp => {
+          const cols = calculateColumns(bp);
+          breakpoints[bp] = { 
+            rowPerView: cols,
+            // 可选：设置间距
+            // gutter: gutter
+          };
+        });
+        
+        // 设置默认值（基于当前窗口宽度）
+        const defaultCols = calculateColumns(Math.max(viewportWidth, 180));
+        
+        // 更新 breakpoints - 创建全新对象触发响应式更新
+        this.breakpoints = JSON.parse(JSON.stringify({
+          0: { rowPerView: Math.max(defaultCols, 1) },
+          ...breakpoints
+        }));
+
+        console.log('[calculateBreakpoints] 当前窗口对应列数:', defaultCols);
+        console.log('[calculateBreakpoints] 新的 breakpoints:', JSON.stringify(this.breakpoints));
+        console.log('[calculateBreakpoints] 依赖插件自动重新布局');
+      },
       query(){
-     this.start=false
+        this.loading = true;
         fetch(`/query?pass=${this.pass}`,{
             method:'GET'
         }).then((response)=>{
@@ -34,31 +142,120 @@ export default{
           }
             throw response
         }).then((succ)=>{
+            this.list = [];
             for (let i = 0; i < succ.keys.length; i++) {
-                this.list.push(succ.keys[i])
+                  const it = succ.keys[i];
+                  // ensure action toggle flag
+                  it._actionsActive = false;
+                  this.list.push(it);
             }
             this.list.sort((a,b)=>{
-              this.auth=false
               return b.metadata.date-a.metadata.date
             })
-            
+            localStorage.setItem('list_pass', this.pass);
+            localStorage.setItem('list_pass_expiry', (Date.now() + this.cacheExpiry).toString());
+            localStorage.setItem('list_data', JSON.stringify(this.list));
+            this.auth=false
+            this.loading = false;
         }).catch((err)=>{
-          alert('密码错误')
+          mdui.alert('密码错误')
+          this.loading = false;
         })
     },
-    display(e){
-      const gallery = new Viewer(document.getElementById('images'));
-      gallery.show()
+    refreshCache(){
+      // 从当前 this.pass 获取密码并重新查询
+      const currentPass = this.pass;
+      if (!currentPass) {
+        mdui.alert('请先输入密码');
+        return;
+      }
+      // 清除列表缓存，保留密码缓存以便重新查询
+      localStorage.removeItem('list_data');
+      this.list = [];
+      this.query();
     },
-
+    isImage(category) {
+        return category === 'image';
+    },
+    getFileIcon(category) {
+        const iconMap = {
+          'image': 'image',
+          'video': 'videocam',
+          'sound': 'audiotrack',
+          'document': 'description',
+          'other': 'insert_drive_file'
+        };
+        return iconMap[category] || 'insert_drive_file';
+    },
+    display(e){
+      const gallery = new Viewer(e);
+      gallery.show();
+    },
+      toggleListActions(index){
+        if (!this.list[index]) return;
+        this.list[index]._actionsActive = !this.list[index]._actionsActive;
+      },
+      activateThenCopy(index){
+        if (this.list[index]) this.list[index]._actionsActive = true;
+        this.doCopy(index);
+      },
+      activateThenDelete(index){
+        if (this.list[index]) this.list[index]._actionsActive = true;
+        this.doDelete(index);
+      },
     doCopy(e) {
-        this.$copyText(`${window.location.origin}/api/img/`+this.list[e].name).then(()=>{
+        // mark actions active when copying from overlay
+        if (this.list[e]) this.list[e]._actionsActive = true;
+        this.$copyText(`${window.location.origin}/api/file/${this.list[e].name}`).then(()=>{
           mdui.alert('复制成功')
         },()=>{
           mdui.alert('失败')
-        }
-        )
+        })
+    },
+    doDelete(e) {
+      const item = this.list[e];
+      if (!confirm(`确定要删除文件 "${item.metadata.originalName || item.name}" 吗？`)) {
+        return;
       }
+      // 获取或提示密码（使用缓存）
+      this.getPassCache().then(pass => {
+        const deleteUrl = `/api/file/${item.name}?pass=${encodeURIComponent(pass)}`;
+        return fetch(deleteUrl, { method: 'DELETE' });
+      })
+      .then(response => {
+        if (response.ok) {
+          return response.json();
+        }
+        throw response;
+      })
+      .then(data => {
+        mdui.alert('文件已删除');
+        this.list.splice(e, 1);
+        localStorage.setItem('list_data', JSON.stringify(this.list));
+      })
+      .catch(err => {
+        mdui.alert('删除失败：请稍后重试');
+      });
+    },
+
+    getPassCache(){
+      return new Promise((resolve, reject) => {
+        const cached = localStorage.getItem('list_pass');
+        const expiry = localStorage.getItem('list_pass_expiry');
+        if (cached && expiry && parseInt(expiry) > Date.now()) {
+          this.pass = cached;
+          resolve(cached);
+          return;
+        }
+        mdui.prompt('请输入删除密码', '密码校验', value =>{
+          if (!value) { mdui.alert('需要密码'); reject(new Error('no-pass')); return; }
+          this.pass = value;
+          localStorage.setItem('list_pass', value);
+          localStorage.setItem('list_pass_expiry', (Date.now() + 30*60*1000).toString());
+          resolve(value);
+        });
+      });
+    }
   },
   components:{
     Waterfall,
@@ -68,33 +265,105 @@ export default{
 }
 </script>
 <template>
-  <Transition name="loading">
-    <div class="mdui-textfield mdui-textfield-floating-label center" style="top:30%" v-if="auth">
-  <label class="mdui-textfield-label">PASSWORD</label>
-  <input class="mdui-textfield-input" v-model="pass" type="password" @keyup.enter="query"/>
-  <button class="mdui-btn mdui-btn-raised mdui-color-indigo mdui-text-color-white" style="margin-top: 10px;" @click="query">生成</button>
-</div>
+  <div style="position: absolute; inset:0;">
+    <Transition name="loading">
+      <Loading :active="loading" loader="bars" width="50" height="50" color="rgb(0,123,255)"></Loading>
     </Transition>
-<Waterfall :list="this.list" :breakpoints="breakpoints" id="images" v-if="!auth">
-  <template #item="{ item, url, index }">
-    <div class="mdui-card">
-  <div class="mdui-card-media">
-    <LazyImg :url="'/api/img/'+item.name" @click="display($event.target)"/>
-    <div class="mdui-card-media-covered">
-      <div class="mdui-card-primary">
-        <div class="mdui-card-primary-title">{{item.name}}</div>
+
+    <!-- 认证界面 -->
+    <div v-if="auth" class="auth-container">
+      <div class="auth-box">
+        <div class="auth-title">文件列表</div>
+        <div class="mdui-textfield mdui-textfield-floating-label" style="width:100%">
+          <label class="mdui-textfield-label">密码</label>
+          <input class="mdui-textfield-input" v-model="pass" type="password" @keyup.enter="query"/>
+        </div>
+        <button class="mdui-btn mdui-btn-raised mdui-color-indigo mdui-text-color-white" style="margin-top: 16px; width:100%;" @click="query">查询</button>
       </div>
     </div>
+
+    <!-- 列表界面 -->
+    <div class="app-container" v-if="!auth">
+      <header class="app-header">
+        <div class="title">文件列表</div>
+        <button class="refresh-btn" @click="refreshCache" title="更新缓存">
+          <i class="mdui-icon material-icons">refresh</i>
+        </button>
+      </header>
+
+      <main class="main">
+        <Waterfall 
+          ref="waterfall" 
+          :list="list" 
+          :breakpoints="breakpoints" 
+          :gutter="16"
+          :hasAroundGutter="true"
+          id="images"
+        >
+          <template #item="{ item, url, index }">
+            <div class="mdui-card card-min">
+              <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image">
+                <div class="image-bg" :style="{ backgroundImage: 'url(/api/file/' + item.name + ')' }"></div>
+                <div class="image-wrapper">
+                  <LazyImg :url="'/api/file/'+item.name" @click="display($event.target)" class="preview-img"></LazyImg>
+                </div>
+                <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
+                  <button class="overlay-btn" @click.stop="activateThenCopy(index)">
+                    <i class="mdui-icon material-icons">content_copy</i>
+                  </button>
+                  <button class="overlay-btn delete" @click.stop="activateThenDelete(index)">
+                    <i class="mdui-icon material-icons">delete</i>
+                  </button>
+                </div>
+              </div>
+              <div v-else class="mdui-card-media media-icon">
+                <div class="file-icon-container">
+                  <i class="mdui-icon material-icons">{{ getFileIcon(item.metadata.category) }}</i>
+                </div>
+                <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
+                  <button class="overlay-btn" @click.stop="activateThenCopy(index)">
+                    <i class="mdui-icon material-icons">content_copy</i>
+                  </button>
+                  <button class="overlay-btn delete" @click.stop="activateThenDelete(index)">
+                    <i class="mdui-icon material-icons">delete</i>
+                  </button>
+                </div>
+              </div>
+              <div class="card-info">
+                <div class="info-row info-line">
+                  <div class="left-info">
+                    <div class="category-tag" :title="item.metadata.category">
+                      <i class="mdui-icon material-icons" style="font-size:16px">{{ getFileIcon(item.metadata.category) }}</i>
+                      <span>{{ item.metadata.category }}</span>
+                    </div>
+                    <div class="file-name-scroll" :title="item.metadata.originalName || item.name">{{ item.metadata.originalName || item.name }}</div>
+                  </div>
+                  <div class="right-actions">
+                    <button class="icon-btn" @click="activateThenCopy(index)" title="复制">
+                      <i class="mdui-icon material-icons">content_copy</i>
+                    </button>
+                    <button class="icon-btn" @click="activateThenDelete(index)" title="删除" style="color:#d32f2f">
+                      <i class="mdui-icon material-icons">delete</i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </Waterfall>
+      </main>
+
+      <footer class="app-footer">Powered by <a href="https://github.com/iiop123/workers-image-hosting">Workers-ImageHosting</a></footer>
+    </div>
   </div>
-  <div class="mdui-card-actions">
-    <button class="mdui-btn mdui-ripple mdui-color-indigo mdui-text-color-white" @click="doCopy(index)">复制</button>
-  </div>
-</div>
-  </template>
-</Waterfall>
 </template>
 <style>
 @import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.css';
+:root{box-sizing:border-box}
+*,*::before,*::after{box-sizing:inherit}
+html,body{width:100%;height:100%;margin:0;overflow-x:hidden;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;touch-action:manipulation}
+body{font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
+
 .lazy__img[lazy=loading] {
   padding: 5em 0;
   width: 48px;
@@ -108,29 +377,85 @@ export default{
   padding: 5em 0;
   width: 48px;
 }
-.loading-enter-active,
-.loading-leave-active {
-  transition: all 0.8s ease;
-}
-.loading-enter-from,
-.loading-leave-to {
-  opacity: 0;
-}
-.loading{
-  left: 50%;
-    top: 50%;
-    transform: translate(-50%,-50%);
-    text-align: center;
-    padding-top: 15px;
-    z-index: 999;
-    width: 16vh;
-    position: absolute;
-    background-color: #e5dedecf;
-    box-sizing: border-box;
-}
-.center{
+
+/* 认证界面 - list.vue 特有 */
+.auth-container{
   position: absolute;
-  left: 50%;
-    transform: translate(-50%,-50%);
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  z-index: 10;
+}
+.auth-box{
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.1);
+  width: 90%;
+  max-width: 320px;
+  text-align: center;
+}
+.auth-title{
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  color: #333;
+}
+
+.app-container{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  background: #f7f9fb;
+  max-width:100%;
+  overflow-x:hidden;
+}
+.app-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #eceff1;
+}
+.title{
+  font-size:18px;
+  font-weight:600;
+}
+.refresh-btn{
+  background:none;
+  border:none;
+  cursor:pointer;
+  padding:8px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#1976d2;
+  transition:all 0.3s ease;
+}
+.refresh-btn:hover{
+  background:#f0f0f0;
+  transform:rotate(180deg);
+}
+.refresh-btn .mdui-icon{
+  font-size:24px;
+}
+
+.category-tag{display:flex;align-items:center;gap:4px;font-size:11px;color:#1976d2;background:#e3f2fd;padding:2px 6px;border-radius:4px;flex-shrink:0}
+.icon-btn{background:none;border:none;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;color:#1976d2;font-size:18px;transition:all 0.2s}
+.icon-btn:hover{color:#1565c0;transform:scale(1.1)}
+.app-footer{padding:12px;text-align:center;color:#888;font-size:13px}
+
+/* responsive adjustments */
+@media (max-width:600px){
+  .title{font-size:16px}
+  .auth-box{padding:24px}
+  .auth-title{font-size:20px}
+  .mdui-btn{padding:2px 6px !important;font-size:10px !important;min-width:auto !important}
+  .app-header{position:sticky;top:0;z-index:60;background:#fff}
+  .category-tag span{display:none}
 }
 </style>
