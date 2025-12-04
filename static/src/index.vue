@@ -318,7 +318,14 @@ export default{
         })
         .then(() => {
           mdui.alert('文件已删除');
-          this.file_info.splice(e, 1);
+          // 通过 link 查找并删除,避免使用可能失效的索引
+          const index = this.file_info.findIndex(item => {
+            const itemFileName = item.link ? item.link.split('/').pop() : item.name;
+            return itemFileName === fileName;
+          });
+          if (index !== -1) {
+            this.file_info.splice(index, 1);
+          }
         })
         .catch(() => {
           mdui.alert('删除失败：请稍后重试');
@@ -402,6 +409,7 @@ export default{
           :breakpoints="breakpoints"
           :gutter="16"
           :hasAroundGutter="true"
+          :rowKey="'link'"
           id="images"
         >
           <template #item="{ item, url, index }">
