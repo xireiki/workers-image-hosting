@@ -24,36 +24,31 @@ async function handleAssetRequest(request) {
   return getAssetFromKV({ request });
 }
 
-// 首页直接返回静态文件
-router.get('/', async ({ req, res }) => {
+// 兼容本地 dev：直接使用原始 event 调用 getAssetFromKV，保证响应流交给 runtime
+addEventListener('fetch', (event) => {
   try {
-    const requestUrl = new URL(req.url.toString ? req.url.toString() : String(req.url));
-    requestUrl.pathname = '/index.html';
-    const request = new Request(requestUrl.toString(), { method: 'GET', headers: req.headers || {} });
-    const assetResponse = await handleAssetRequest(request);
-    res.status = assetResponse.status;
-    res.headers = new Headers(assetResponse.headers || {});
-    res.body = assetResponse.body;
+    const pathname = new URL(event.request.url).pathname;
+    const asset = new RegExp('/assets/.*', 'i');
+    const index = new RegExp('/index.*', 'i');
+    const list = new RegExp('/list.*', 'i');
+    if (asset.test(pathname) || index.test(pathname) || list.test(pathname)) {
+      event.respondWith(getAssetFromKV(event));
+    }
   } catch (e) {
-    res.status = 500;
-    res.body = { info: '无法返回首页' };
+    // ignore
   }
 });
 
+// 首页直接返回静态文件
+// 首页跳转到 /index.html（由 getAssetFromKV 处理静态资源）
+router.get('/', ({ res }) => {
+  res.redirect('/index.html');
+});
+
 // /list 直接返回 list.html
-router.get('/list', async ({ req, res }) => {
-  try {
-    const requestUrl = new URL(req.url.toString ? req.url.toString() : String(req.url));
-    requestUrl.pathname = '/list.html';
-    const request = new Request(requestUrl.toString(), { method: 'GET', headers: req.headers || {} });
-    const assetResponse = await handleAssetRequest(request);
-    res.status = assetResponse.status;
-    res.headers = new Headers(assetResponse.headers || {});
-    res.body = assetResponse.body;
-  } catch (e) {
-    res.status = 500;
-    res.body = { info: '无法返回列表页' };
-  }
+// /list 跳转到 /list.html
+router.get('/list', ({ res }) => {
+  res.redirect('/list.html');
 });
 
 
@@ -172,7 +167,7 @@ app.use(async ({ req, res }, next) => {
       const assetResponse = await handleAssetRequest(request);
       res.status = assetResponse.status;
       res.headers = new Headers(assetResponse.headers || {});
-      res.body = assetResponse.body;
+      res.body = assetResponse;
       return;
     } catch (e) {
       // asset handler failed -> fallthrough to router
