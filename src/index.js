@@ -27,10 +27,40 @@ async function handleAssetRequest(request) {
 // 兼容本地 dev：直接使用原始 event 调用 getAssetFromKV，保证响应流交给 runtime
 addEventListener('fetch', (event) => {
   try {
-    const pathname = new URL(event.request.url).pathname;
+    const url = new URL(event.request.url);
+    const pathname = url.pathname;
     const asset = new RegExp('/assets/.*', 'i');
     const index = new RegExp('/index.*', 'i');
     const list = new RegExp('/list.*', 'i');
+
+    // Serve index.html for root path while keeping URL as '/'
+    if (pathname === '/') {
+      event.respondWith(
+        getAssetFromKV(event, {
+          mapRequestToAsset: (req) => {
+            const u = new URL(req.url);
+            u.pathname = '/index.html';
+            return new Request(u.toString(), req);
+          }
+        })
+      );
+      return;
+    }
+
+    // Serve list.html for /list while keeping URL as '/list'
+    if (pathname === '/list') {
+      event.respondWith(
+        getAssetFromKV(event, {
+          mapRequestToAsset: (req) => {
+            const u = new URL(req.url);
+            u.pathname = '/list.html';
+            return new Request(u.toString(), req);
+          }
+        })
+      );
+      return;
+    }
+
     if (asset.test(pathname) || index.test(pathname) || list.test(pathname)) {
       event.respondWith(getAssetFromKV(event));
     }
