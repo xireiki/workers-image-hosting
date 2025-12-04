@@ -280,9 +280,9 @@ export default{
     },
     doCopy(e) {
         this.$copyText(this.file_info[e].link).then(()=>{
-          mdui.alert('复制成功')
+          mdui.snackbar('复制成功')
         },()=>{
-          mdui.alert('上传中...')
+          mdui.snackbar('复制失败')
         })
     },
     doDelete(e) {

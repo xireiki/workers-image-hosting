@@ -216,9 +216,9 @@ export default{
         // mark actions active when copying from overlay
         if (this.list[e]) this.list[e]._actionsActive = true;
         this.$copyText(`${window.location.origin}/api/file/${this.list[e].name}`).then(()=>{
-          mdui.alert('复制成功')
+          mdui.snackbar('复制成功')
         },()=>{
-          mdui.alert('失败')
+          mdui.snackbar('复制失败')
         })
     },
     async doDelete(e) {
