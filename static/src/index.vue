@@ -187,7 +187,7 @@ export default{
                       link: r.data.link,
                       category: r.data.category || 'other',
                       localData: e.target.result,
-                      name: r.data.name || 'file'
+                      name: fileObj.name || 'file'
                     });
                   };
                   reader.readAsDataURL(fileObj);
@@ -195,7 +195,7 @@ export default{
                   that.file_info.unshift({
                     link: r.data.link,
                     category: r.data.category || 'other',
-                    name: r.data.name || 'file'
+                    name: fileObj ? fileObj.name : 'file'
                   });
                 }
             }
@@ -227,8 +227,8 @@ export default{
 
         for (let i = 0; i < fileList.length; i++) {
           const f = fileList[i];
-          if (f.size > 50 * 1024 * 1024) {
-            mdui.alert('文件过大，单文件限制 50MB');
+          if (f.size > 25 * 1024 * 1024) {
+            mdui.alert('文件过大，单文件限制 25MB');
             continue;
           }
          that.status=true;
@@ -245,7 +245,7 @@ export default{
                     link: r.data.link,
                     category: r.data.category || 'other',
                     localData: e.target.result,
-                    name: r.data.name || 'file',
+                    name: fileObj.name || 'file',
                     actionsActive: false
                   });
                 };
@@ -254,7 +254,7 @@ export default{
                 that.file_info.unshift({
                   link: r.data.link,
                   category: r.data.category || 'other',
-                  name: r.data.name || 'file',
+                  name: fileObj ? fileObj.name : 'file',
                   actionsActive: false
                 });
               }
@@ -425,7 +425,7 @@ export default{
                     <i class="mdui-icon material-icons">content_copy</i>
                   </button>
                   <button class="overlay-btn" @click.stop="activateThenDownload(index)">
-                    <i class="mdui-icon material-icons">download</i>
+                    <i class="mdui-icon material-icons">get_app</i>
                   </button>
                   <button class="overlay-btn delete" @click.stop="activateThenDelete(index)">
                     <i class="mdui-icon material-icons">delete</i>
