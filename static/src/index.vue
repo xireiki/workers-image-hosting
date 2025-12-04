@@ -5,7 +5,7 @@ import 'vue-loading-overlay/dist/css/index.css';
 import 'vue-waterfall-plugin-next/style.css'
 import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.js'
 import axios from 'axios'
-const img_check=new RegExp("(.*?)\.(png|jpe?g|gif|bmp|psd|tiff|tga|webp)","i")
+// 允许任意文件类型，前端仅做大小校验，后端负责类型与分类
 export default{
     data(){
         return{
@@ -73,64 +73,67 @@ export default{
       ////
 
         for (let i = 0; i < file_id.files.length; i++) {
-          
-          if (file_id.files[i].size>26214400||!img_check.test(file_id.files[i].name)) {
-            mdui.alert('文件格式不正确')
-         that.status=false
-         continue
+          const f = file_id.files[i];
+          if (f.size > 25 * 1024 * 1024) { // 最大 50MB 前端限制
+            mdui.alert('文件过大，单文件限制 50MB');
+            continue;
           }
-         uplist.push(up(file_id.files[i]))
-         that.status=true
+          uplist.push(up(f));
+          that.status = true;
         }
-        Promise.all(uplist).then(res=>{
-          for (let i = 0; i < uplist.length; i++) {
-            console.log(res.data);
-            that.file_info.push({
-              link:res[i].data.link
-            }) 
-          }
-          that.status=false
+
+        Promise.all(uplist).then(results => {
+          results.forEach(r => {
+            if (r && r.data) {
+              that.file_info.unshift({
+                link: r.data.link,
+                category: r.data.category || 'other'
+              });
+            }
+          });
+          that.status = false;
         }).catch(err=>{
-            mdui.alert(err.response.data.info)
-        return that.status=false
+          mdui.alert((err && err.response && err.response.data && err.response.data.info) || '上传失败');
+          that.status = false;
         })
     },
     drop_upload(files){
-      let file_id=files.dataTransfer.files
-      this.powerby=false
-      const that=this
-      this.over_page=false
-      let uplist=[]
+      let fileList = files.dataTransfer.files;
+      this.powerby=false;
+      const that=this;
+      this.over_page=false;
+      let uplist=[];
       ////////
       async function up(file) {
-          let f=new FormData()
-          f.append('img',file)
+          let f=new FormData();
+          f.append('img',file);
           let UploadObj={
         method:'post',
         url:'/api',
         data:f
-      }
-      return axios(UploadObj)
+      };
+      return axios(UploadObj);
       }
       ////
 
-        for (let i = 0; i < file_id.length; i++) {
-          if (file_id[i].size>26214400||!img_check.test(file_id[i].name)) {
-            mdui.alert('文件格式不正确')
-               continue
+        for (let i = 0; i < fileList.length; i++) {
+          const f = fileList[i];
+          if (f.size > 50 * 1024 * 1024) {
+            mdui.alert('文件过大，单文件限制 50MB');
+            continue;
           }
-         that.status=true
-        uplist.push(up(file_id[i]))
+         that.status=true;
+        uplist.push(up(f));
         }
-        Promise.all(uplist).then(res=>{
-          for (let i = 0; i < uplist.length; i++) {
-            that.file_info.push({
-              link:res[i].data.link
-            }) 
-          }
+        Promise.all(uplist).then(results=>{
+          results.forEach(r=>{
+            if (r && r.data) {
+              that.file_info.unshift({ link: r.data.link, category: r.data.category || 'other' });
+            }
+          });
           return that.status=false
         }).catch(err=>{
-            mdui.alert(err.response.data.info)
+            mdui.alert((err && err.response && err.response.data && err.response.data.info) || '上传失败')
         return that.status=false
         })
     },
@@ -167,90 +170,98 @@ export default{
     <div style="font-weight: 300; top:20%;" class="center" v-if="powerby">
       GITHUB:<a href="https://github.com/iiop123/workers-image-hosting">Workers-ImageHosting</a>
     </div>
-<Waterfall :list="file_info" id="images" :breakpoints="breakpoints">
+<div class="app-container">
+  <header class="app-header">
+    <div class="title">简洁图床</div>
+    <div class="actions">
+      <label class="upload-btn">
+        <i class="mdui-icon material-icons">cloud_upload</i>
+        <input type="file" ref="inp" multiple @change="file" style="display:none" />
+      </label>
+    </div>
+  </header>
+
+  <main class="main">
+    <Waterfall :list="file_info" id="images" :breakpoints="breakpoints">
   <template #item="{ item, url, index }">
-    <div class="mdui-card">
+    <div class="mdui-card card-min">
   <div class="mdui-card-media">
     <LazyImg :url="item.link" @click="display($event.target)" />
-    <div class="mdui-card-media-covered">
-      <div class="mdui-card-primary">
-        <div class="mdui-card-primary-title">第{{index}}张</div>
-      </div>
-    </div>
   </div>
-  <div class="mdui-card-actions">
+  <div class="mdui-card-actions actions-row">
+    <div class="meta">{{ item.category || 'other' }}</div>
     <button class="mdui-btn mdui-ripple mdui-color-indigo mdui-text-color-white" @click="doCopy(index)">复制</button>
   </div>
 </div>
   </template>
-</Waterfall>
-<button class="mdui-fab mdui-color-indigo mdui-text-color-white center" style="bottom: 10px; position: fixed;" @change="file">
-  <i class="mdui-icon material-icons">add</i>
-  <input type="file" accept="image/*" ref="inp" multiple style="opacity: 0;">
-</button>
+    </Waterfall>
+  </main>
+
+  <footer class="app-footer">Powered by <a href="https://github.com/iiop123/workers-image-hosting">Workers-ImageHosting</a></footer>
+</div>
 </div>
 </template>
 <style>
 @import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.css';
-.drop_text{
-  border: dashed 2px;
-  border-radius: 10px;
-  width: 150px;
-  height: 150px;
-  color: white;
-  padding: 5px;
-  }
-.drop_text:before{
-  content: '+将文件拖到此处，即可上传';
-}
 .overlay{
-  background-color: rgba(0,0,0,.7);
-  z-index: 10;
+  background-color: rgba(0,0,0,.6);
+  z-index: 40;
   position: fixed;
   inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
-.flex_center{
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.lazy__img[lazy=loading] {
-  padding: 5em 0;
-  width: 48px;
-}
-
-.lazy__img[lazy=loaded] {
-  width: 100%;
+.drop_text{
+  border: 2px dashed rgba(255,255,255,0.9);
+  border-radius: 12px;
+  padding: 20px;
+  color: #fff;
+  font-size: 16px;
+  text-align: center;
+  max-width: 75%;
 }
 
-.lazy__img[lazy=error] {
-  padding: 5em 0;
-  width: 48px;
+.app-container{
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  background: #f7f9fb;
 }
-.loading-enter-active,
-.loading-leave-active {
-  transition: all 0.8s ease;
+.app-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #eceff1;
 }
-.loading-enter-from,
-.loading-leave-to {
-  opacity: 0;
+.title{
+  font-size:18px;
+  font-weight:600;
 }
-.loading{
-  left: 50%;
-    top: 50%;
-    transform: translate(-50%,-50%);
-    text-align: center;
-    padding-top: 15px;
-    z-index: 999;
-    width: 16vh;
-    position: absolute;
-    background-color: #e5dedecf;
-    box-sizing: border-box;
+.upload-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  cursor:pointer;
+  padding:8px 12px;
+  border-radius:8px;
+  background: #1976d2;
+  color:#fff;
 }
-.center{
-  position: absolute;
-  left: 50%;
-    transform: translate(-50%,-50%);
+.upload-btn i{font-size:20px}
+.main{flex:1;padding:12px;max-width:1200px;margin:0 auto;width:100%}
+.card-min{border-radius:8px;overflow:hidden}
+.card-min img{width:100%;height:auto;display:block}
+.actions-row{display:flex;justify-content:space-between;align-items:center;padding:8px}
+.meta{font-size:12px;color:#666}
+.app-footer{padding:12px;text-align:center;color:#888;font-size:13px}
+
+/* responsive adjustments */
+@media (max-width:600px){
+  .title{font-size:16px}
+  .upload-btn{padding:10px}
+  .drop_text{font-size:14px}
 }
 </style>
