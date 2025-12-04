@@ -14,7 +14,8 @@ export default{
         loading:false,
         cacheExpiry: 30 * 60 * 1000,
         breakpoints: {},
-        resizeTimer: null
+        resizeTimer: null,
+        showScrollTop: false
         }
     },
     mounted(){
@@ -52,10 +53,17 @@ export default{
         }, 150);
       };
       window.addEventListener('resize', this._resizeHandler);
+      
+      // 监听滚动事件
+      this._scrollHandler = () => {
+        this.showScrollTop = window.scrollY > 200;
+      };
+      window.addEventListener('scroll', this._scrollHandler);
     },
     beforeUnmount(){
       if (this._docClickHandler) document.removeEventListener('click', this._docClickHandler);
       if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+      if (this._scrollHandler) window.removeEventListener('scroll', this._scrollHandler);
       if (this.resizeTimer) clearTimeout(this.resizeTimer);
     },
     methods:{
@@ -80,11 +88,14 @@ export default{
         
         // 计算可以容纳的列数
         const calculateColumns = (width) => {
+          // 移动端限制：屏幕宽度小于 600px 时最多 2 列
+          const maxCols = width < 600 ? 2 : 8;
+          
           // 尝试不同的列数，找到最接近理想卡片宽度的配置
           let bestCols = 1;
           let bestDiff = Infinity;
           
-          for (let cols = 1; cols <= 8; cols++) {
+          for (let cols = 1; cols <= maxCols; cols++) {
             const totalGutter = gutter * (cols - 1);
             const availableWidth = width - totalGutter;
             const cardWidth = availableWidth / cols;
@@ -93,7 +104,7 @@ export default{
             if (cardWidth < minCardWidth) continue;
             
             // 如果卡片宽度超过最大值，且列数大于1，选择更多列
-            if (cardWidth > maxCardWidth && cols < 8) continue;
+            if (cardWidth > maxCardWidth && cols < maxCols) continue;
             
             // 计算与理想宽度的差距
             const diff = Math.abs(cardWidth - idealCardWidth);
@@ -255,6 +266,14 @@ export default{
           resolve(value);
         });
       });
+    },
+
+    goToUpload(){
+      window.location.href = '/';
+    },
+
+    scrollToTop(){
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   },
   components:{
@@ -286,9 +305,14 @@ export default{
     <div class="app-container" v-if="!auth">
       <header class="app-header">
         <div class="title">文件列表</div>
-        <button class="refresh-btn" @click="refreshCache" title="更新缓存">
-          <i class="mdui-icon material-icons">refresh</i>
-        </button>
+        <div style="display: flex; gap: 8px;">
+          <button class="refresh-btn" @click="goToUpload" title="上传图片">
+            <i class="mdui-icon material-icons">cloud_upload</i>
+          </button>
+          <button class="refresh-btn" @click="refreshCache" title="更新缓存">
+            <i class="mdui-icon material-icons">refresh</i>
+          </button>
+        </div>
       </header>
 
       <main class="main">
@@ -354,6 +378,13 @@ export default{
       </main>
 
       <footer class="app-footer">Powered by <a href="https://github.com/iiop123/workers-image-hosting">Workers-ImageHosting</a></footer>
+      
+      <!-- 回到顶部按钮 -->
+      <Transition name="fade">
+        <button v-if="showScrollTop" class="scroll-top-btn" @click="scrollToTop" title="回到顶部">
+          <i class="mdui-icon material-icons">arrow_upward</i>
+        </button>
+      </Transition>
     </div>
   </div>
 </template>
@@ -449,9 +480,55 @@ body{font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvet
 .icon-btn:hover{color:#1565c0;transform:scale(1.1)}
 .app-footer{padding:12px;text-align:center;color:#888;font-size:13px}
 
+/* 回到顶部按钮 */
+.scroll-top-btn{
+  position:fixed;
+  bottom:24px;
+  right:24px;
+  width:56px;
+  height:56px;
+  border-radius:50%;
+  background:#1976d2;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 4px 12px rgba(25,118,210,0.4);
+  transition:all 0.3s ease;
+  z-index:1000;
+}
+.scroll-top-btn:hover{
+  background:#1565c0;
+  transform:translateY(-4px);
+  box-shadow:0 6px 16px rgba(25,118,210,0.5);
+}
+.scroll-top-btn .mdui-icon{
+  font-size:24px;
+}
+
+/* 淡入淡出动画 */
+.fade-enter-active, .fade-leave-active{
+  transition:opacity 0.3s, transform 0.3s;
+}
+.fade-enter-from, .fade-leave-to{
+  opacity:0;
+  transform:translateY(10px) scale(0.9);
+}
+
 /* responsive adjustments */
 @media (max-width:600px){
   .title{font-size:16px}
+  .scroll-top-btn{
+    width:48px;
+    height:48px;
+    bottom:16px;
+    right:16px;
+  }
+  .scroll-top-btn .mdui-icon{
+    font-size:20px;
+  }
   .auth-box{padding:24px}
   .auth-title{font-size:20px}
   .mdui-btn{padding:2px 6px !important;font-size:10px !important;min-width:auto !important}

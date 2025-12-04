@@ -104,11 +104,14 @@ export default{
       
       // 计算可以容纳的列数
       const calculateColumns = (width) => {
+        // 移动端限制：屏幕宽度小于 600px 时最多 2 列
+        const maxCols = width < 600 ? 2 : 8;
+        
         // 尝试不同的列数，找到最接近理想卡片宽度的配置
         let bestCols = 1;
         let bestDiff = Infinity;
         
-        for (let cols = 1; cols <= 8; cols++) {
+        for (let cols = 1; cols <= maxCols; cols++) {
           const totalGutter = gutter * (cols - 1);
           const availableWidth = width - totalGutter;
           const cardWidth = availableWidth / cols;
@@ -117,7 +120,7 @@ export default{
           if (cardWidth < minCardWidth) continue;
           
           // 如果卡片宽度超过最大值，且列数大于1，选择更多列
-          if (cardWidth > maxCardWidth && cols < 8) continue;
+          if (cardWidth > maxCardWidth && cols < maxCols) continue;
           
           // 计算与理想宽度的差距
           const diff = Math.abs(cardWidth - idealCardWidth);
