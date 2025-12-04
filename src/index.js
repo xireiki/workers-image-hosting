@@ -151,6 +151,7 @@ router.get('/api/file/:p', async ({ req, res }) => {
   const type = metadata && metadata.type ? metadata.type : 'application/octet-stream';
   const size = metadata && metadata.size ? metadata.size : null;
   const category = metadata && metadata.category ? metadata.category : 'other';
+  const originalName = metadata && metadata.originalName ? metadata.originalName : req.params.p;
 
   if (req.headers.has('If-None-Match')) {
     res.status = 304;
@@ -161,6 +162,7 @@ router.get('/api/file/:p', async ({ req, res }) => {
   res.headers.set('Cache-Control', 'public, max-age=864000');
   res.headers.set('Content-Type', type);
   res.headers.set('X-Category', category);
+  res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
   if (size !== null) res.etag = size;
   res.body = body;
 });
