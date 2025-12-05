@@ -196,14 +196,16 @@ export default{
         return iconMap[category] || 'insert_drive_file';
     },
     display(imageUrl, fileName){
-      // 创建加载动画元素
+      const startTime = Date.now();
+      let loaderShown = false;
+      
+      // 创建加载动画元素，但先不显示
       const loader = document.createElement('div');
       loader.className = 'image-loader';
       loader.innerHTML = '<div class="spinner"></div>';
       loader.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999;';
       const spinner = loader.querySelector('.spinner');
       spinner.style.cssText = 'border:4px solid #f3f3f3;border-top:4px solid #3498db;border-radius:50%;width:50px;height:50px;animation:spin 1s linear infinite;';
-      document.body.appendChild(loader);
       
       // 添加旋转动画
       if (!document.getElementById('spin-keyframes')) {
@@ -213,11 +215,21 @@ export default{
         document.head.appendChild(style);
       }
       
+      // 250ms后才显示加载动画
+      const loaderTimeout = setTimeout(() => {
+        document.body.appendChild(loader);
+        loaderShown = true;
+      }, 250);
+      
       // 预加载原图
       const img = new Image();
       img.onload = () => {
-        // 加载完成，移除加载动画
-        document.body.removeChild(loader);
+        // 清除定时器
+        clearTimeout(loaderTimeout);
+        // 如果加载动画已显示，移除它
+        if (loaderShown) {
+          document.body.removeChild(loader);
+        }
         
         // 显示预览
         const gallery = new Viewer(img, {
@@ -238,8 +250,12 @@ export default{
         gallery.show();
       };
       img.onerror = () => {
-        // 加载失败，移除加载动画
-        document.body.removeChild(loader);
+        // 清除定时器
+        clearTimeout(loaderTimeout);
+        // 如果加载动画已显示，移除它
+        if (loaderShown) {
+          document.body.removeChild(loader);
+        }
         mdui.alert('图片加载失败');
       };
       img.src = imageUrl;
