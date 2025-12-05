@@ -6,6 +6,7 @@ import 'vue-waterfall-plugin-next/style.css'
 import './common.css'
 import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.js'
 import axios from 'axios'
+import { getThumbnailUrl } from './utils.js'
 
 // 允许任意文件类型，前端仅做大小校验，后端负责类型与分类
 export default{
@@ -335,35 +336,7 @@ export default{
       return category === 'image';
     },
     getThumbnailUrl(originalUrl) {
-      // 如果是本地数据（base64），直接返回
-      if (!originalUrl || originalUrl.startsWith('data:')) {
-        return originalUrl;
-      }
-      
-      // 检查是否是内网地址
-      const hostname = window.location.hostname;
-      const isLocalNetwork = hostname === 'localhost' || 
-                            hostname === '127.0.0.1' || 
-                            hostname.startsWith('192.168.') || 
-                            hostname.startsWith('10.') || 
-                            hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./); // 172.16.0.0/12
-      
-      // 内网环境直接返回原图
-      if (isLocalNetwork) {
-        return originalUrl;
-      }
-      
-      // 计算合适的缩略图宽度（基于屏幕宽度）
-      const screenWidth = window.innerWidth;
-      const dpr = window.devicePixelRatio || 1;
-      // 估算每列宽度（考虑列数）
-      const cols = screenWidth < 600 ? 2 : (screenWidth < 1200 ? 3 : 4);
-      const platSize = Math.min(Math.floor((screenWidth / cols) * dpr), 800);
-      
-      // 使用后端缩略图 API
-      // 从 /api/file/xxx 提取文件名
-      const fileName = originalUrl.replace('/api/file/', '');
-      return `/api/thumb/${fileName}?width=${platSize}`;
+      return getThumbnailUrl(originalUrl, false);
     },
     getFileIcon(category) {
       const iconMap = {
