@@ -348,7 +348,7 @@ export default{
       };
       return iconMap[category] || 'insert_drive_file';
     },
-    display(e, fileName){
+    display(imageUrl, fileName){
       // 创建加载动画元素
       const loader = document.createElement('div');
       loader.className = 'image-loader';
@@ -365,9 +365,6 @@ export default{
         style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
         document.head.appendChild(style);
       }
-      
-      // 获取原图 URL
-      const originalUrl = e.getAttribute('data-original') || e.src;
       
       // 预加载原图
       const img = new Image();
@@ -398,7 +395,7 @@ export default{
         document.body.removeChild(loader);
         mdui.alert('图片加载失败');
       };
-      img.src = originalUrl;
+      img.src = imageUrl;
     }
   },
   components:{
@@ -455,8 +452,8 @@ export default{
               <div v-if="isImage(item.category)" class="mdui-card-media media-image">
                 <div class="image-bg" :style="{backgroundImage: `url(${item.localData || getThumbnailUrl(item.link)})`}"></div>
                 <div class="image-wrapper">
-                  <img v-if="item.localData" :src="item.localData" @click="display($event.target, item.name || 'file')" class="preview-img" />
-                  <LazyImg v-else :url="getThumbnailUrl(item.link)" :data-original="item.link" @click="display($event.target, item.name || 'file')" class="preview-img" />
+                  <img v-if="item.localData" :src="item.localData" @click="display(item.localData, item.name || 'file')" class="preview-img" />
+                  <LazyImg v-else :url="getThumbnailUrl(item.link)" @click="display(item.link, item.name || 'file')" class="preview-img" />
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">

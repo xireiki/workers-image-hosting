@@ -195,7 +195,7 @@ export default{
         };
         return iconMap[category] || 'insert_drive_file';
     },
-    display(e, fileName){
+    display(imageUrl, fileName){
       // 创建加载动画元素
       const loader = document.createElement('div');
       loader.className = 'image-loader';
@@ -212,9 +212,6 @@ export default{
         style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
         document.head.appendChild(style);
       }
-      
-      // 获取原图 URL
-      const originalUrl = e.getAttribute('data-original') || e.src;
       
       // 预加载原图
       const img = new Image();
@@ -245,7 +242,7 @@ export default{
         document.body.removeChild(loader);
         mdui.alert('图片加载失败');
       };
-      img.src = originalUrl;
+      img.src = imageUrl;
     },
       toggleListActions(index){
         if (!this.list[index]) return;
@@ -405,7 +402,7 @@ export default{
               <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image">
                 <div class="image-bg" :style="{ backgroundImage: 'url(' + getThumbnailUrl(item.name) + ')' }"></div>
                 <div class="image-wrapper">
-                  <LazyImg :url="getThumbnailUrl(item.name)" :data-original="'/api/file/'+item.name" @click="display($event.target, item.metadata.originalName || item.name)" class="preview-img"></LazyImg>
+                  <LazyImg :url="getThumbnailUrl(item.name)" @click="display('/api/file/'+item.name, item.metadata.originalName || item.name)" class="preview-img"></LazyImg>
                 </div>
                 <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
