@@ -170,7 +170,7 @@ export default{
         for (let i = 0; i < file_id.files.length; i++) {
           const f = file_id.files[i];
           if (f.size > 25 * 1024 * 1024) { // 最大 50MB 前端限制
-            mdui.alert('文件过大，单文件限制 50MB');
+            mdui.snackbar(`文件 "${f.name}" 过大，单文件限制 25MB`);
             continue;
           }
           uplist.push(up(f));
@@ -229,7 +229,7 @@ export default{
         for (let i = 0; i < fileList.length; i++) {
           const f = fileList[i];
           if (f.size > 25 * 1024 * 1024) {
-            mdui.alert('文件过大，单文件限制 25MB');
+            mdui.snackbar(`文件 "${f.name}" 过大，单文件限制 25MB`);
             continue;
           }
          that.status=true;
