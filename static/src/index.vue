@@ -168,9 +168,9 @@ export default{
       
       // 定义理想的卡片宽度范围（单位：px）
       // 考虑 DPI：高 DPI 设备上可以显示更多细节
-      const minCardWidth = 180 / Math.max(dpr * 0.8, 1); // 最小卡片宽度
-      const idealCardWidth = 280 / Math.max(dpr * 0.8, 1); // 理想卡片宽度
-      const maxCardWidth = 400 / Math.max(dpr * 0.8, 1); // 最大卡片宽度
+      const minCardWidth = 150 / Math.max(dpr * 0.8, 1); // 最小卡片宽度
+      const idealCardWidth = 220 / Math.max(dpr * 0.8, 1); // 理想卡片宽度
+      const maxCardWidth = 320 / Math.max(dpr * 0.8, 1); // 最大卡片宽度
       
       // 卡片间距
       const gutter = 16;
@@ -399,30 +399,40 @@ export default{
       }
       if (!confirm(`确定要删除文件 "${item.name || fileName}" 吗？`)) return;
       const deleteUrl = `/api/file/${fileName}`;
+      
       fetch(deleteUrl, { method: 'DELETE' })
-        .then(response => {
-          if (response.ok) return response.json();
-          throw response;
-        })
-        .then(() => {
-          mdui.alert('文件已删除');
-          // 通过 link 查找并删除,避免使用可能失效的索引
-          const index = this.file_info.findIndex(item => {
+        .then(async response => {
+          if (!response.ok) {
+            throw new Error('删除请求失败');
+          }
+          
+          // 删除成功，显示提示
+          mdui.snackbar({
+            message: '文件已删除',
+            position: 'bottom'
+          });
+          
+          // 找到并删除项目
+          const fileInfoIndex = this.file_info.findIndex(item => {
             const itemFileName = item.link ? item.link.split('/').pop() : item.name;
             return itemFileName === fileName;
           });
-          if (index !== -1) {
-            this.file_info.splice(index, 1);
-          }
-          const indexAll = this.file_info_all.findIndex(item => {
+          const fileInfoAllIndex = this.file_info_all.findIndex(item => {
             const itemFileName = item.link ? item.link.split('/').pop() : item.name;
             return itemFileName === fileName;
           });
-          if (indexAll !== -1) {
-            this.file_info_all.splice(indexAll, 1);
+          
+          if (fileInfoIndex !== -1) {
+            this.file_info.splice(fileInfoIndex, 1);
           }
+          if (fileInfoAllIndex !== -1) {
+            this.file_info_all.splice(fileInfoAllIndex, 1);
+          }
+          
+          localStorage.setItem('img_info', JSON.stringify(this.file_info_all));
         })
-        .catch(() => {
+        .catch(err => {
+          console.error('删除失败:', err);
           mdui.alert('删除失败：请稍后重试');
         });
     },
@@ -560,8 +570,8 @@ export default{
           :breakpoints="breakpoints"
           :gutter="16"
           :hasAroundGutter="true"
-          :rowKey="'link'"
-          :delay="0"
+          :rowKey="options => options.item.link"
+          :delay="100"
           :lazyload="false"
           id="images"
         >

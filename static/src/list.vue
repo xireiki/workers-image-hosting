@@ -41,6 +41,11 @@ export default{
         this.auth = false;
         if (cachedList) {
           this.list_all = JSON.parse(cachedList);
+          // 初始化所有item的加载状态
+          this.list_all.forEach(item => {
+            item._imageLoading = true;
+            item._actionsActive = false;
+          });
           // 初始加载
           this.$nextTick(() => {
             this.loadMoreItems();
@@ -147,9 +152,9 @@ export default{
         
         // 定义理想的卡片宽度范围（单位：px）
         // 考虑 DPI：高 DPI 设备上可以显示更多细节
-        const minCardWidth = 180 / Math.max(dpr * 0.8, 1); // 最小卡片宽度
-        const idealCardWidth = 280 / Math.max(dpr * 0.8, 1); // 理想卡片宽度
-        const maxCardWidth = 400 / Math.max(dpr * 0.8, 1); // 最大卡片宽度
+        const minCardWidth = 150 / Math.max(dpr * 0.8, 1); // 最小卡片宽度
+        const idealCardWidth = 220 / Math.max(dpr * 0.8, 1); // 理想卡片宽度
+        const maxCardWidth = 320 / Math.max(dpr * 0.8, 1); // 最大卡片宽度
         
         // 卡片间距
         const gutter = 16;
@@ -227,6 +232,8 @@ export default{
                   const it = succ.keys[i];
                   // ensure action toggle flag
                   it._actionsActive = false;
+                  // 初始化图片加载状态
+                  it._imageLoading = true;
                   this.list_all.push(it);
             }
             this.list_all.sort((a,b)=>{
@@ -471,7 +478,7 @@ export default{
         document.body.removeChild(link);
       });
       
-      deleteBtn.addEventListener('click', () => {
+      deleteBtn.addEventListener('click', async () => {
         if (!confirm(`确定要删除文件 "${item.metadata.originalName || item.name}" 吗？`)) return;
         
         // 关闭动画
@@ -483,23 +490,34 @@ export default{
           document.body.removeChild(modal);
         }, 300);
         
-        const deleteUrl = `/api/file/${item.name}`;
-        fetch(deleteUrl, { method: 'DELETE' })
-          .then(response => {
-            if (response.ok) return response.json();
-            throw response;
-          })
-          .then(() => {
-            const index = this.list.findIndex(it => it.name === item.name);
-            if (index !== -1) {
-              this.list.splice(index, 1);
-              localStorage.setItem('list_data', JSON.stringify(this.list));
-            }
-            mdui.snackbar('删除成功');
-          })
-          .catch(() => {
-            mdui.alert('删除失败：请稍后重试');
-          });
+        // 获取密码
+        try {
+          const pass = await this.getPassCache();
+          const hashedPass = await this.hashPassword(pass);
+          const deleteUrl = `/api/file/${item.name}?pass=${encodeURIComponent(hashedPass)}`;
+          
+          const response = await fetch(deleteUrl, { method: 'DELETE' });
+          if (!response.ok) {
+            throw new Error('删除请求失败');
+          }
+          
+          // 删除成功
+          const listIndex = this.list.findIndex(it => it.name === item.name);
+          const listAllIndex = this.list_all.findIndex(it => it.name === item.name);
+          
+          if (listIndex !== -1) {
+            this.list.splice(listIndex, 1);
+          }
+          if (listAllIndex !== -1) {
+            this.list_all.splice(listAllIndex, 1);
+          }
+          
+          localStorage.setItem('list_data', JSON.stringify(this.list_all));
+          mdui.snackbar({ message: '文件已删除', position: 'bottom' });
+        } catch (err) {
+          console.error('删除失败:', err);
+          mdui.alert('删除失败：请稍后重试');
+        }
       });
     },
       toggleListActions(index){
@@ -554,29 +572,40 @@ export default{
       }
       
       // 获取或提示密码（使用缓存）
-      this.getPassCache().then(async pass => {
-        const hashedPass = await this.hashPassword(pass);
-        const deleteUrl = `/api/file/${kvKey}?pass=${encodeURIComponent(hashedPass)}`;
-        return fetch(deleteUrl, { method: 'DELETE' });
-      })
-      .then(response => {
-        if (response.ok) {
-          return response.json();
-        }
-        throw response;
-      })
-      .then(data => {
-        mdui.alert('文件已删除');
-        // 通过 KV key 查找并删除，避免使用可能失效的索引
-        const index = this.list.findIndex(item => item.name === kvKey);
-        if (index !== -1) {
-          this.list.splice(index, 1);
-          localStorage.setItem('list_data', JSON.stringify(this.list));
-        }
-      })
-      .catch(err => {
-        mdui.alert('删除失败：请稍后重试');
-      });
+      this.getPassCache()
+        .then(async pass => {
+          const hashedPass = await this.hashPassword(pass);
+          const deleteUrl = `/api/file/${kvKey}?pass=${encodeURIComponent(hashedPass)}`;
+          const response = await fetch(deleteUrl, { method: 'DELETE' });
+          
+          if (!response.ok) {
+            throw new Error('删除请求失败');
+          }
+          
+          // 删除成功，显示提示
+          mdui.snackbar({
+            message: '文件已删除',
+            position: 'bottom'
+          });
+          
+          // 找到并删除项目
+          const listIndex = this.list.findIndex(item => item.name === kvKey);
+          const listAllIndex = this.list_all.findIndex(item => item.name === kvKey);
+          
+          if (listIndex !== -1) {
+            this.list.splice(listIndex, 1);
+          }
+          if (listAllIndex !== -1) {
+            this.list_all.splice(listAllIndex, 1);
+          }
+          
+          localStorage.setItem('list_data', JSON.stringify(this.list_all));
+        })
+        .catch(err => {
+          // 捕获所有错误
+          console.error('删除失败:', err);
+          mdui.alert('删除失败：请稍后重试');
+        });
     },
 
     getPassCache(){
@@ -658,8 +687,8 @@ export default{
           :breakpoints="breakpoints" 
           :gutter="16"
           :hasAroundGutter="true"
-          :rowKey="'name'"
-          :delay="0"
+          :rowKey="options => options.item.name"
+          :delay="100"
           :lazyload="false"
           id="images"
         >
