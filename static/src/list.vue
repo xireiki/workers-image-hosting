@@ -306,7 +306,7 @@ export default{
                 <i class="mdui-icon material-icons" style="font-size:18px;">get_app</i>
                 <span>下载</span>
               </button>
-              <button class="action-btn" data-action="delete" style="padding:8px 16px;border:1px solid #f44336;border-radius:4px;background:#f44336;color:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
+              <button class="action-btn" data-action="delete" style="padding:8px 16px;border:none;border-radius:4px;background:#d32f2f;color:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
                 <i class="mdui-icon material-icons" style="font-size:18px;">delete</i>
                 <span>删除</span>
               </button>
@@ -577,7 +577,7 @@ export default{
                   </button>
                 </div>
               </div>
-              <div class="card-info">
+              <div class="card-info" :class="{'clickable-info': isImage(item.metadata.category)}" @click="isImage(item.metadata.category) ? displayFileInfo(item) : null" :style="isImage(item.metadata.category) ? 'cursor:pointer;' : ''">
                 <div class="info-row info-line">
                   <div class="left-info">
                     <div class="category-tag" :title="item.metadata.category">
@@ -586,13 +586,13 @@ export default{
                     <div class="file-name-scroll" :title="item.metadata.originalName || item.name">{{ item.metadata.originalName || item.name }}</div>
                   </div>
                   <div class="right-actions">
-                    <button class="icon-btn" @click="activateThenCopy(index)" title="复制">
+                    <button class="icon-btn" @click.stop="activateThenCopy(index)" title="复制">
                       <i class="mdui-icon material-icons">content_copy</i>
                     </button>
-                    <button class="icon-btn" @click="activateThenDownload(index)" title="下载">
+                    <button class="icon-btn" @click.stop="activateThenDownload(index)" title="下载">
                       <i class="mdui-icon material-icons">get_app</i>
                     </button>
-                    <button class="icon-btn" @click="activateThenDelete(index)" title="删除" style="color:#d32f2f">
+                    <button class="icon-btn" @click.stop="activateThenDelete(index)" title="删除" style="color:#d32f2f">
                       <i class="mdui-icon material-icons">delete</i>
                     </button>
                   </div>
