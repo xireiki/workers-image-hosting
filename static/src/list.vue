@@ -186,6 +186,17 @@ export default{
     isImage(category) {
         return category === 'image';
     },
+    getThumbnailUrl(fileName) {
+      // 计算合适的缩略图宽度（基于屏幕宽度）
+      const screenWidth = window.innerWidth;
+      const dpr = window.devicePixelRatio || 1;
+      // 估算每列宽度（考虑列数）
+      const cols = screenWidth < 600 ? 2 : (screenWidth < 1200 ? 3 : 4);
+      const platSize = Math.min(Math.floor((screenWidth / cols) * dpr), 800);
+      
+      // 使用后端缩略图 API
+      return `/api/thumb/${fileName}?width=${platSize}`;
+    },
     getFileIcon(category) {
         const iconMap = {
           'image': 'image',
@@ -370,9 +381,9 @@ export default{
           <template #item="{ item, url, index }">
             <div class="mdui-card card-min">
               <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image">
-                <div class="image-bg" :style="{ backgroundImage: 'url(/api/file/' + item.name + ')' }"></div>
+                <div class="image-bg" :style="{ backgroundImage: 'url(' + getThumbnailUrl(item.name) + ')' }"></div>
                 <div class="image-wrapper">
-                  <LazyImg :url="'/api/file/'+item.name" @click="display($event.target, item.metadata.originalName || item.name)" class="preview-img"></LazyImg>
+                  <LazyImg :url="getThumbnailUrl(item.name)" :data-original="'/api/file/'+item.name" @click="display($event.target, item.metadata.originalName || item.name)" class="preview-img"></LazyImg>
                 </div>
                 <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">

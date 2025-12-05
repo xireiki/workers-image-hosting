@@ -334,6 +334,23 @@ export default{
     isImage(category) {
       return category === 'image';
     },
+    getThumbnailUrl(originalUrl) {
+      // 如果是本地数据（base64），直接返回
+      if (!originalUrl || originalUrl.startsWith('data:')) {
+        return originalUrl;
+      }
+      // 计算合适的缩略图宽度（基于屏幕宽度）
+      const screenWidth = window.innerWidth;
+      const dpr = window.devicePixelRatio || 1;
+      // 估算每列宽度（考虑列数）
+      const cols = screenWidth < 600 ? 2 : (screenWidth < 1200 ? 3 : 4);
+      const platSize = Math.min(Math.floor((screenWidth / cols) * dpr), 800);
+      
+      // 使用后端缩略图 API
+      // 从 /api/file/xxx 提取文件名
+      const fileName = originalUrl.replace('/api/file/', '');
+      return `/api/thumb/${fileName}?width=${platSize}`;
+    },
     getFileIcon(category) {
       const iconMap = {
         'image': 'image',
@@ -415,10 +432,10 @@ export default{
           <template #item="{ item, url, index }">
             <div class="mdui-card card-min">
               <div v-if="isImage(item.category)" class="mdui-card-media media-image">
-                <div class="image-bg" :style="{backgroundImage: `url(${item.localData || item.link})`}"></div>
+                <div class="image-bg" :style="{backgroundImage: `url(${item.localData || getThumbnailUrl(item.link)})`}"></div>
                 <div class="image-wrapper">
                   <img v-if="item.localData" :src="item.localData" @click="display($event.target, item.name || 'file')" class="preview-img" />
-                  <LazyImg v-else :url="item.link" @click="display($event.target, item.name || 'file')" class="preview-img" />
+                  <LazyImg v-else :url="getThumbnailUrl(item.link)" :data-original="item.link" @click="display($event.target, item.name || 'file')" class="preview-img" />
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">

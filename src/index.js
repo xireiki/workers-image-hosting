@@ -155,6 +155,47 @@ router.post('/api', async ({ req, res }) => {
   };
 });
 
+// 获取缩略图（Cloudflare Image Resizing）
+router.get('/api/thumb/:p', async ({ req, res }) => {
+  const { metadata } = await LINK.getWithMetadata(req.params.p, { type: "text" });
+  const category = metadata && metadata.category ? metadata.category : 'other';
+  
+  // 只有图片才生成缩略图
+  if (category !== 'image') {
+    res.status = 400;
+    res.headers = header;
+    res.body = { info: '只支持图片缩略图' };
+    return;
+  }
+
+  // 从查询参数获取缩略图宽度，默认 400px，最大 800px
+  const width = Math.min(parseInt(req.url.searchParams.get('width') || '400'), 800);
+  
+  // 获取原始图片
+  const body = await LINK.get(req.params.p, { cacheTtl: 864000, type: "stream" });
+  const type = metadata && metadata.type ? metadata.type : 'image/jpeg';
+  
+  // 使用 Cloudflare Image Resizing
+  // 通过 cf 选项指定图片转换参数
+  const hostname = new URL(req.url).hostname;
+  const imageUrl = `https://${hostname}/api/file/${req.params.p}`;
+  
+  const imageResponse = await fetch(imageUrl, {
+    cf: {
+      image: {
+        width: width,
+        quality: 85,
+        format: 'auto'
+      }
+    }
+  });
+
+  res.headers = header;
+  res.headers.set('Cache-Control', 'public, max-age=864000');
+  res.headers.set('Content-Type', imageResponse.headers.get('Content-Type') || type);
+  res.body = imageResponse.body;
+});
+
 // 获取文件（返回二进制流并在头部包含 category）
 router.get('/api/file/:p', async ({ req, res }) => {
   const body = await LINK.get(req.params.p, { cacheTtl: 864000, type: "stream" });
