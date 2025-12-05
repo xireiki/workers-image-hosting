@@ -260,6 +260,134 @@ export default{
       };
       img.src = imageUrl;
     },
+    displayFileInfo(item) {
+      // 创建弹窗
+      const modal = document.createElement('div');
+      modal.className = 'file-info-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999;';
+      
+      // 格式化文件大小
+      const formatSize = (bytes) => {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+      };
+      
+      // 格式化时间
+      const formatDate = (timestamp) => {
+        const date = new Date(timestamp);
+        return date.toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      };
+      
+      const category = item.metadata.category || 'other';
+      const icon = this.getFileIcon(category);
+      const fileUrl = `/api/file/${item.name}`;
+      
+      modal.innerHTML = `
+        <div class="file-info-content" style="background:white;border-radius:8px;width:500px;max-width:90vw;overflow:hidden;">
+          <div class="file-info-header" style="display:flex;align-items:center;padding:24px;border-bottom:1px solid #eee;">
+            <div class="file-icon-large" style="flex:0 0 33.33%;display:flex;align-items:center;justify-content:center;">
+              <i class="mdui-icon material-icons" style="font-size:80px;color:#666;">${icon}</i>
+            </div>
+            <div class="file-actions" style="flex:1;display:flex;gap:12px;justify-content:flex-end;">
+              <button class="action-btn" data-action="copy" style="padding:8px 16px;border:1px solid #ddd;border-radius:4px;background:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                <i class="mdui-icon material-icons" style="font-size:18px;">content_copy</i>
+                <span>复制</span>
+              </button>
+              <button class="action-btn" data-action="download" style="padding:8px 16px;border:1px solid #ddd;border-radius:4px;background:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                <i class="mdui-icon material-icons" style="font-size:18px;">get_app</i>
+                <span>下载</span>
+              </button>
+              <button class="action-btn" data-action="delete" style="padding:8px 16px;border:1px solid #f44336;border-radius:4px;background:white;color:#f44336;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                <i class="mdui-icon material-icons" style="font-size:18px;">delete</i>
+                <span>删除</span>
+              </button>
+            </div>
+          </div>
+          <div class="file-info-body" style="padding:24px;">
+            <div class="info-item" style="margin-bottom:16px;">
+              <div style="color:#999;font-size:12px;margin-bottom:4px;">文件名</div>
+              <div style="font-size:14px;word-break:break-all;">${item.metadata.originalName || item.name}</div>
+            </div>
+            <div class="info-item" style="margin-bottom:16px;">
+              <div style="color:#999;font-size:12px;margin-bottom:4px;">类型 (MIME)</div>
+              <div style="font-size:14px;">${item.metadata.type || '未知'}</div>
+            </div>
+            <div class="info-item" style="margin-bottom:16px;">
+              <div style="color:#999;font-size:12px;margin-bottom:4px;">大小</div>
+              <div style="font-size:14px;">${formatSize(item.metadata.size || 0)}</div>
+            </div>
+            <div class="info-item">
+              <div style="color:#999;font-size:12px;margin-bottom:4px;">上传时间</div>
+              <div style="font-size:14px;">${formatDate(item.metadata.date)}</div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // 点击背景关闭
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          document.body.removeChild(modal);
+        }
+      });
+      
+      // 点击按钮事件
+      const copyBtn = modal.querySelector('[data-action="copy"]');
+      const downloadBtn = modal.querySelector('[data-action="download"]');
+      const deleteBtn = modal.querySelector('[data-action="delete"]');
+      
+      copyBtn.addEventListener('click', () => {
+        this.$copyText(`${window.location.origin}${fileUrl}`).then(() => {
+          mdui.snackbar('复制成功');
+        }, () => {
+          mdui.snackbar('复制失败');
+        });
+      });
+      
+      downloadBtn.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.href = fileUrl;
+        link.download = item.metadata.originalName || item.name;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+      
+      deleteBtn.addEventListener('click', () => {
+        document.body.removeChild(modal);
+        if (!confirm(`确定要删除文件 "${item.metadata.originalName || item.name}" 吗？`)) return;
+        
+        const deleteUrl = `/api/file/${item.name}`;
+        fetch(deleteUrl, { method: 'DELETE' })
+          .then(response => {
+            if (response.ok) return response.json();
+            throw response;
+          })
+          .then(() => {
+            const index = this.list.findIndex(it => it.name === item.name);
+            if (index !== -1) {
+              this.list.splice(index, 1);
+              localStorage.setItem('list_data', JSON.stringify(this.list));
+            }
+            mdui.snackbar('删除成功');
+          })
+          .catch(() => {
+            mdui.alert('删除失败：请稍后重试');
+          });
+      });
+    },
       toggleListActions(index){
         if (!this.list[index]) return;
         this.list[index]._actionsActive = !this.list[index]._actionsActive;
@@ -432,7 +560,7 @@ export default{
                   </button>
                 </div>
               </div>
-              <div v-else class="mdui-card-media media-icon">
+              <div v-else class="mdui-card-media media-icon" @click="displayFileInfo(item)" style="cursor:pointer;">
                 <div class="file-icon-container">
                   <i class="mdui-icon material-icons">{{ getFileIcon(item.metadata.category) }}</i>
                 </div>
