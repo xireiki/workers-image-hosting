@@ -307,7 +307,7 @@ export default{
             <div class="file-icon-large" style="flex:0 0 ${leftWidth};display:flex;align-items:center;justify-content:center;${leftPadding}">
               ${leftContent}
             </div>
-            <div class="file-actions" style="flex:1;display:flex;gap:min(12px, 2vw);justify-content:flex-end;flex-wrap:wrap;">
+            <div class="file-actions" style="flex:1;display:flex;gap:min(12px, 2vw);justify-content:center;flex-wrap:wrap;align-content:center;">
               <button class="action-btn" data-action="copy" style="padding:8px 16px;border:1px solid #ddd;border-radius:4px;background:white;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:14px;">
                 <i class="mdui-icon material-icons" style="font-size:18px;">content_copy</i>
                 <span>复制</span>
