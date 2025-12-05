@@ -306,7 +306,7 @@ export default{
                 <i class="mdui-icon material-icons" style="font-size:18px;">get_app</i>
                 <span>下载</span>
               </button>
-              <button class="action-btn" data-action="delete" style="padding:8px 16px;border:1px solid #f44336;border-radius:4px;background:white;color:#f44336;cursor:pointer;display:flex;align-items:center;gap:4px;">
+              <button class="action-btn" data-action="delete" style="padding:8px 16px;border:1px solid #f44336;border-radius:4px;background:#f44336;color:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
                 <i class="mdui-icon material-icons" style="font-size:18px;">delete</i>
                 <span>删除</span>
               </button>
