@@ -20,7 +20,9 @@ export default{
         resizeTimer: null,
         showScrollTop: false,
         loadBatchSize: 20,
-        isLoadingMore: false
+        isLoadingMore: false,
+        layoutTimer: null,  // 布局防抖定时器
+        isFirstLoad: true   // 是否首次加载
         }
     },
     mounted(){
@@ -85,6 +87,7 @@ export default{
       if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
       if (this._scrollHandler) window.removeEventListener('scroll', this._scrollHandler);
       if (this.resizeTimer) clearTimeout(this.resizeTimer);
+      if (this.layoutTimer) clearTimeout(this.layoutTimer);
       imageLoadManager.disconnect();
     },
     methods:{
@@ -101,11 +104,6 @@ export default{
         this.list.push(...newItems);
         
         this.$nextTick(() => {
-          // 触发瀑布流重新布局
-          if (this.$refs.waterfall && this.$refs.waterfall.renderer) {
-            this.$refs.waterfall.renderer();
-          }
-          
           this.isLoadingMore = false;
           
           // 设置智能预加载
@@ -114,7 +112,32 @@ export default{
             this.list,
             (name) => this.getThumbnailUrl(name)
           );
+          
+          // 依赖图片@load事件触发布局
         });
+      },
+      onImageLoad(index){
+        // 标记图片加载完成
+        if (this.list[index]) {
+          this.list[index]._imageLoading = false;
+        }
+        
+        // 首次加载完成后关闭遮罩
+        if (this.isFirstLoad) {
+          this.isFirstLoad = false;
+        }
+        
+        // 图片加载完成后触发布局更新（防抖）
+        if (this.layoutTimer) {
+          clearTimeout(this.layoutTimer);
+        }
+        this.layoutTimer = setTimeout(() => {
+          this.$nextTick(() => {
+            if (this.$refs.waterfall && this.$refs.waterfall.renderer) {
+              this.$refs.waterfall.renderer();
+            }
+          });
+        }, 100);
       },
       calculateBreakpoints(){
         // 获取设备像素比（DPI 相关）
@@ -622,6 +645,12 @@ export default{
         </div>
       </header>
 
+      <!-- 首次加载遮罩 -->
+      <div v-if="isFirstLoad && list.length > 0" class="first-load-mask">
+        <div class="spinner"></div>
+        <div class="loading-text">正在加载图片...</div>
+      </div>
+
       <main class="main">
         <Waterfall 
           ref="waterfall" 
@@ -630,17 +659,19 @@ export default{
           :gutter="16"
           :hasAroundGutter="true"
           :rowKey="'name'"
+          :delay="0"
+          :lazyload="false"
           id="images"
         >
           <template #item="{ item, url, index }">
             <div class="mdui-card card-min">
               <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image" @click="display('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;">
                 <!-- <div class="image-bg" :style="{ backgroundImage: 'url(' + getThumbnailUrl(item.name) + ')' }"></div> -->
-                <div class="image-wrapper">
+                <div class="image-wrapper" :class="{loading: item._imageLoading !== false}">
                   <img 
                     :src="getThumbnailUrl(item.name)" 
                     class="preview-img"
-                    loading="lazy"
+                    @load="() => onImageLoad(index)"
                   />
                 </div>
                 <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">

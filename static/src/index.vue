@@ -21,7 +21,9 @@ export default{
         breakpoints: {},
         resizeTimer: null,
         loadBatchSize: 20, // 每次加载数量
-        isLoadingMore: false
+        isLoadingMore: false,
+        layoutTimer: null,  // 布局防抖定时器
+        isFirstLoad: true   // 是否首次加载
         }
     },
     mounted(){
@@ -31,31 +33,33 @@ export default{
       // 初始化自适应布局
       this.calculateBreakpoints();
       
-      const drag=document.querySelector('.drag')
-      drag.addEventListener('dragenter',(e)=>{
-        e.preventDefault()
-        this.over_page=true
-      })
-      drag.addEventListener('dragleave',(e)=>{
-        e.preventDefault()
-        
-        if (
-        e.clientX <= 0 ||
-          e.clientY <= 0 ||
-          e.clientX >= window.innerWidth ||
-          e.clientY >= window.innerHeight
-    ){
-      this.over_page=false
-    }
-      })
-      drag.addEventListener('dragover',(e)=>{
-        e.preventDefault()
-        e.dataTransfer.dropEffect = 'copy';
-      })
-      drag.addEventListener('drop',(e)=>{
-        e.preventDefault()
-        this.drop_upload(e)
-      })
+      const drag=document.querySelector('#drag')
+      if (drag) {
+        drag.addEventListener('dragenter',(e)=>{
+          e.preventDefault()
+          this.over_page=true
+        })
+        drag.addEventListener('dragleave',(e)=>{
+          e.preventDefault()
+          
+          if (
+          e.clientX <= 0 ||
+            e.clientY <= 0 ||
+            e.clientX >= window.innerWidth ||
+            e.clientY >= window.innerHeight
+      ){
+        this.over_page=false
+      }
+        })
+        drag.addEventListener('dragover',(e)=>{
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy';
+        })
+        drag.addEventListener('drop',(e)=>{
+          e.preventDefault()
+          this.drop_upload(e)
+        })
+      }
       // 点击页面其他位置时关闭所有 image overlay 按钮
       this._docClickHandler = (e) => {
         if (e.target.closest && e.target.closest('.image-wrapper')) return;
@@ -105,6 +109,7 @@ export default{
       if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
       if (this._scrollHandler) window.removeEventListener('scroll', this._scrollHandler);
       if (this.resizeTimer) clearTimeout(this.resizeTimer);
+      if (this.layoutTimer) clearTimeout(this.layoutTimer);
     },
     methods:{
     loadMoreItems(){
@@ -120,11 +125,6 @@ export default{
       this.file_info.push(...newItems);
       
       this.$nextTick(() => {
-        // 触发瀑布流重新布局
-        if (this.$refs.waterfall && this.$refs.waterfall.renderer) {
-          this.$refs.waterfall.renderer();
-        }
-        
         this.isLoadingMore = false;
         
         // 设置智能预加载
@@ -133,7 +133,32 @@ export default{
           this.file_info,
           this.getThumbnailUrl
         );
+        
+        // 依赖图片@load事件触发布局
       });
+    },
+    onImageLoad(index){
+      // 标记图片加载完成
+      if (this.file_info[index]) {
+        this.file_info[index]._imageLoading = false;
+      }
+      
+      // 首次加载完成后关闭遮罩
+      if (this.isFirstLoad) {
+        this.isFirstLoad = false;
+      }
+      
+      // 图片加载完成后触发布局更新（防抖）
+      if (this.layoutTimer) {
+        clearTimeout(this.layoutTimer);
+      }
+      this.layoutTimer = setTimeout(() => {
+        this.$nextTick(() => {
+          if (this.$refs.waterfall && this.$refs.waterfall.renderer) {
+            this.$refs.waterfall.renderer();
+          }
+        });
+      }, 100);
     },
     calculateBreakpoints(){
       // 获取设备像素比（DPI 相关）
@@ -522,6 +547,12 @@ export default{
         </div>
       </header>
 
+      <!-- 首次加载遮罩 -->
+      <div v-if="isFirstLoad && file_info.length > 0" class="first-load-mask">
+        <div class="spinner"></div>
+        <div class="loading-text">正在加载图片...</div>
+      </div>
+
       <main class="main">
         <Waterfall 
           ref="waterfall" 
@@ -530,25 +561,28 @@ export default{
           :gutter="16"
           :hasAroundGutter="true"
           :rowKey="'link'"
+          :delay="0"
+          :lazyload="false"
           id="images"
         >
           <template #item="{ item, url, index }">
             <div class="mdui-card card-min">
               <div v-if="isImage(item.category)" class="mdui-card-media media-image">
                 <!-- <div class="image-bg" :style="{backgroundImage: `url(${item.localData || getThumbnailUrl(item.link)})`}"></div> -->
-                <div class="image-wrapper">
+                <div class="image-wrapper" :class="{loading: item._imageLoading !== false}">
                   <img 
                     v-if="item.localData" 
                     :src="item.localData" 
                     @click="display(item.localData, item.name || 'file')" 
-                    class="preview-img" 
+                    class="preview-img"
+                    @load="() => onImageLoad(index)"
                   />
                   <img 
                     v-else
                     :src="getThumbnailUrl(item.link)" 
                     @click="display(item.link, item.name || 'file')" 
                     class="preview-img"
-                    loading="lazy"
+                    @load="() => onImageLoad(index)"
                   />
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">

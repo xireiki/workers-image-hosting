@@ -13,6 +13,17 @@ export class ImageLoadManager {
   async register() {
     if ('serviceWorker' in navigator) {
       try {
+        // 检查是否为生产环境（HTTPS 或部署的域名）
+        const isProduction = location.protocol === 'https:' || 
+                            location.hostname !== 'localhost' && 
+                            location.hostname !== '127.0.0.1';
+        
+        // 开发环境下跳过 Service Worker
+        if (!isProduction) {
+          console.log('Development mode: Service Worker disabled');
+          return null;
+        }
+        
         this.swRegistration = await navigator.serviceWorker.register('/sw.js', {
           scope: '/'
         });
@@ -29,7 +40,8 @@ export class ImageLoadManager {
         
         return this.swRegistration;
       } catch (error) {
-        console.error('Service Worker registration failed:', error);
+        console.warn('Service Worker registration failed:', error);
+        // 注册失败不影响应用运行
       }
     } else {
       console.warn('Service Worker not supported');
