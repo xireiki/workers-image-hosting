@@ -577,7 +577,7 @@ export default{
                   </button>
                 </div>
               </div>
-              <div class="card-info" :class="{'clickable-info': isImage(item.metadata.category)}" @click="isImage(item.metadata.category) ? displayFileInfo(item) : null" :style="isImage(item.metadata.category) ? 'cursor:pointer;' : ''">
+              <div class="card-info" @click="displayFileInfo(item)" style="cursor:pointer;">
                 <div class="info-row info-line">
                   <div class="left-info">
                     <div class="category-tag" :title="item.metadata.category">
