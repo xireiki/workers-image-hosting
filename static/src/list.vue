@@ -671,6 +671,7 @@ export default{
                   <img 
                     :src="getThumbnailUrl(item.name)" 
                     class="preview-img"
+                    :class="{loaded: item._imageLoading === false}"
                     @load="() => onImageLoad(index)"
                   />
                 </div>

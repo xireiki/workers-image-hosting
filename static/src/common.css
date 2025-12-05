@@ -69,6 +69,13 @@
   display: block;
   cursor: pointer;
   background: transparent;
+  /* 加载时不可见，加载完成后显示 */
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.preview-img.loaded {
+  opacity: 1;
 }
 
 /* 覆盖 LazyImg 组件的默认样式 */

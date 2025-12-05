@@ -575,6 +575,7 @@ export default{
                     :src="item.localData" 
                     @click="display(item.localData, item.name || 'file')" 
                     class="preview-img"
+                    :class="{loaded: item._imageLoading === false}"
                     @load="() => onImageLoad(index)"
                   />
                   <img 
@@ -582,6 +583,7 @@ export default{
                     :src="getThumbnailUrl(item.link)" 
                     @click="display(item.link, item.name || 'file')" 
                     class="preview-img"
+                    :class="{loaded: item._imageLoading === false}"
                     @load="() => onImageLoad(index)"
                   />
                 </div>
