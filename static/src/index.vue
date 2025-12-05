@@ -267,7 +267,8 @@ export default{
                       link: r.data.link,
                       category: r.data.category || 'other',
                       localData: e.target.result,
-                      name: fileObj.name || 'file'
+                      name: fileObj.name || 'file',
+                      deleteToken: r.data.deleteToken  // 保存 token
                     };
                     that.file_info_all.unshift(newItem);
                     that.file_info.unshift(newItem);
@@ -277,7 +278,8 @@ export default{
                   const newItem = {
                     link: r.data.link,
                     category: r.data.category || 'other',
-                    name: fileObj ? fileObj.name : 'file'
+                    name: fileObj ? fileObj.name : 'file',
+                    deleteToken: r.data.deleteToken  // 保存 token
                   };
                   that.file_info_all.unshift(newItem);
                   that.file_info.unshift(newItem);
@@ -330,7 +332,8 @@ export default{
                     category: r.data.category || 'other',
                     localData: e.target.result,
                     name: fileObj.name || 'file',
-                    actionsActive: false
+                    actionsActive: false,
+                    deleteToken: r.data.deleteToken  // 保存 token
                   };
                   that.file_info_all.unshift(newItem);
                   that.file_info.unshift(newItem);
@@ -341,7 +344,8 @@ export default{
                   link: r.data.link,
                   category: r.data.category || 'other',
                   name: fileObj ? fileObj.name : 'file',
-                  actionsActive: false
+                  actionsActive: false,
+                  deleteToken: r.data.deleteToken  // 保存 token
                 };
                 that.file_info_all.unshift(newItem);
                 that.file_info.unshift(newItem);
@@ -397,8 +401,17 @@ export default{
         mdui.alert('无法获取文件名');
         return;
       }
+      
+      // 检查是否有 deleteToken
+      if (!item.deleteToken) {
+        mdui.alert('无法删除：缺少删除权限（token）');
+        return;
+      }
+      
       if (!confirm(`确定要删除文件 "${item.name || fileName}" 吗？`)) return;
-      const deleteUrl = `/api/file/${fileName}`;
+      
+      // 使用 token 删除
+      const deleteUrl = `/api/file/${fileName}?token=${encodeURIComponent(item.deleteToken)}`;
       
       fetch(deleteUrl, { method: 'DELETE' })
         .then(async response => {

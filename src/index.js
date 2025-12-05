@@ -30,6 +30,11 @@ async function randomString(len) { // 随机链接生成
   return result;
 }
 
+// 生成删除 token（32位随机字符串）
+async function generateDeleteToken() {
+  return await randomString(32);
+}
+
 // 静态资源路由 — 使用标准 Worker（通过 Application 中间件）处理静态资源
 async function handleAssetRequest(request) {
   return getAssetFromKV({ request });
@@ -137,6 +142,9 @@ router.post('/api', async ({ req, res }) => {
     url = await randomString();
   }
 
+  // 生成删除 token
+  const deleteToken = await generateDeleteToken();
+
   const stream = file.stream();
   await LINK.put(url, stream, {
     metadata: {
@@ -145,14 +153,16 @@ router.post('/api', async ({ req, res }) => {
       originalName: file.name,
       type: file.type,
       date: new Date().getTime(),
-      category: category
+      category: category,
+      deleteToken: deleteToken  // 存储删除 token
     }
   });
 
   res.headers = header;
   res.body = {
     link: req.url + '/file/' + url,
-    category: category
+    category: category,
+    deleteToken: deleteToken  // 返回删除 token
   };
 });
 
@@ -236,30 +246,63 @@ router.get('/query', async ({ req, res }) => {
   res.body = { info: '密码错误' };
 });
 
-// 删除文件接口
+// 删除文件接口（支持密码或token两种方式）
 router.delete('/api/file/:p', async ({ req, res }) => {
-  // 删除需要密码验证（使用 PASS 环境变量）
-  const provided = req.url.searchParams.get('pass');
-  if (!provided || !PASS) {
-    res.status = 403;
-    res.headers = header;
-    res.body = { info: '密码错误，无法删除' };
-    return;
-  }
-  
-  const hashedPass = await hashPassword(PASS);
-  if (provided !== hashedPass) {
-    res.status = 403;
-    res.headers = header;
-    res.body = { info: '密码错误，无法删除' };
-    return;
-  }
-
   const fileKey = req.params.p;
   if (!fileKey) {
     res.status = 400;
     res.headers = header;
     res.body = { info: '文件键不存在' };
+    return;
+  }
+
+  // 获取文件元数据
+  const { metadata } = await LINK.getWithMetadata(fileKey, { type: "text" });
+  if (!metadata) {
+    res.status = 404;
+    res.headers = header;
+    res.body = { info: '文件不存在' };
+    return;
+  }
+
+  // 方式1: 使用删除 token
+  const providedToken = req.url.searchParams.get('token');
+  if (providedToken && metadata.deleteToken) {
+    if (providedToken === metadata.deleteToken) {
+      try {
+        await LINK.delete(fileKey);
+        res.status = 200;
+        res.headers = header;
+        res.body = { info: '文件已删除' };
+        return;
+      } catch (err) {
+        res.status = 500;
+        res.headers = header;
+        res.body = { info: '删除失败: ' + err.message };
+        return;
+      }
+    } else {
+      res.status = 403;
+      res.headers = header;
+      res.body = { info: 'Token 无效' };
+      return;
+    }
+  }
+
+  // 方式2: 使用密码验证（用于列表页面）
+  const providedPass = req.url.searchParams.get('pass');
+  if (!providedPass || !PASS) {
+    res.status = 403;
+    res.headers = header;
+    res.body = { info: '需要密码或有效的 token' };
+    return;
+  }
+  
+  const hashedPass = await hashPassword(PASS);
+  if (providedPass !== hashedPass) {
+    res.status = 403;
+    res.headers = header;
+    res.body = { info: '密码错误，无法删除' };
     return;
   }
 
