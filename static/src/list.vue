@@ -577,10 +577,10 @@ export default{
         >
           <template #item="{ item, url, index }">
             <div class="mdui-card card-min">
-              <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image">
+              <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image" @click="display('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;">
                 <div class="image-bg" :style="{ backgroundImage: 'url(' + getThumbnailUrl(item.name) + ')' }"></div>
                 <div class="image-wrapper">
-                  <LazyImg :url="getThumbnailUrl(item.name)" @click="display('/api/file/'+item.name, item.metadata.originalName || item.name)" class="preview-img"></LazyImg>
+                  <LazyImg :url="getThumbnailUrl(item.name)" class="preview-img"></LazyImg>
                 </div>
                 <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
