@@ -21,9 +21,10 @@ export function isLocalNetwork(hostname) {
  * 获取缩略图URL（如果是内网则返回原图）
  * @param {string} originalUrl - 原始图片URL或文件名
  * @param {boolean} isFileName - 是否为文件名（true）还是完整URL（false）
+ * @param {string} category - 文件类型分类（image/video/document等）
  * @returns {string} 缩略图URL或原图URL
  */
-export function getThumbnailUrl(originalUrl, isFileName = false) {
+export function getThumbnailUrl(originalUrl, isFileName = false, category = 'image') {
   // 如果是本地数据（base64），直接返回
   if (!originalUrl || originalUrl.startsWith('data:')) {
     return originalUrl;
@@ -32,6 +33,11 @@ export function getThumbnailUrl(originalUrl, isFileName = false) {
   // 检查是否是内网地址
   if (isLocalNetwork()) {
     // 如果是文件名，需要拼接完整路径
+    return isFileName ? `/api/file/${originalUrl}` : originalUrl;
+  }
+  
+  // 只有图片才使用缩略图API
+  if (category !== 'image') {
     return isFileName ? `/api/file/${originalUrl}` : originalUrl;
   }
   

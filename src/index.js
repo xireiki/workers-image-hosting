@@ -43,6 +43,7 @@ addEventListener('fetch', (event) => {
     const asset = new RegExp('/assets/.*', 'i');
     const index = new RegExp('/index.*', 'i');
     const list = new RegExp('/list.*', 'i');
+    const sw = pathname === '/sw.js';
 
     // Serve index.html for root path while keeping URL as '/'
     if (pathname === '/') {
@@ -72,7 +73,7 @@ addEventListener('fetch', (event) => {
       return;
     }
 
-    if (asset.test(pathname) || index.test(pathname) || list.test(pathname)) {
+    if (asset.test(pathname) || index.test(pathname) || list.test(pathname) || sw) {
       event.respondWith(getAssetFromKV(event));
     }
   } catch (e) {

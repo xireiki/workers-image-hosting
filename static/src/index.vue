@@ -131,7 +131,7 @@ export default{
         imageLoadManager.observeImages(
           this.$refs.waterfall,
           this.file_info,
-          this.getThumbnailUrl
+          (link, item) => this.getThumbnailUrl(link, item?.category)
         );
         
         // 依赖图片@load事件触发布局
@@ -429,8 +429,8 @@ export default{
     isImage(category) {
       return category === 'image';
     },
-    getThumbnailUrl(originalUrl) {
-      return getThumbnailUrl(originalUrl, false);
+    getThumbnailUrl(originalUrl, category = 'image') {
+      return getThumbnailUrl(originalUrl, false, category);
     },
     getFileIcon(category) {
       const iconMap = {
@@ -568,7 +568,7 @@ export default{
           <template #item="{ item, url, index }">
             <div class="mdui-card card-min">
               <div v-if="isImage(item.category)" class="mdui-card-media media-image">
-                <!-- <div class="image-bg" :style="{backgroundImage: `url(${item.localData || getThumbnailUrl(item.link)})`}"></div> -->
+                <!-- <div class="image-bg" :style="{backgroundImage: `url(${item.localData || getThumbnailUrl(item.link, item.category)})`}"></div> -->
                 <div class="image-wrapper" :class="{loading: item._imageLoading !== false}">
                   <img 
                     v-if="item.localData" 
@@ -580,7 +580,7 @@ export default{
                   />
                   <img 
                     v-else
-                    :src="getThumbnailUrl(item.link)" 
+                    :src="getThumbnailUrl(item.link, item.category)" 
                     @click="display(item.link, item.name || 'file')" 
                     class="preview-img"
                     :class="{loaded: item._imageLoading === false}"

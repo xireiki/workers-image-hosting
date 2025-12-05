@@ -7,6 +7,8 @@ export class ImageLoadManager {
     this.preloadDelay = 100; // 每批之间延迟100ms
     this.isPreloading = false;
     this.observer = null;
+    this.observedImages = new Set(); // 记录已观察的图片
+    this.preloadedUrls = new Set(); // 记录已预加载的URL
   }
 
   // 注册 Service Worker
@@ -53,8 +55,15 @@ export class ImageLoadManager {
   preloadImages(urls) {
     if (!urls || urls.length === 0) return;
     
+    // 过滤掉已预加载的URL
+    const newUrls = urls.filter(url => !this.preloadedUrls.has(url));
+    if (newUrls.length === 0) return;
+    
+    // 标记为已预加载
+    newUrls.forEach(url => this.preloadedUrls.add(url));
+    
     // 添加到队列
-    this.preloadQueue.push(...urls);
+    this.preloadQueue.push(...newUrls);
     
     // 开始批量预加载
     if (!this.isPreloading) {
@@ -95,54 +104,55 @@ export class ImageLoadManager {
       return;
     }
 
-    // 清理旧的 observer
-    if (this.observer) {
-      this.observer.disconnect();
-    }
-
-    // 创建观察器 - 提前预加载即将进入视口的图片
-    this.observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting || entry.intersectionRatio > 0) {
-            const img = entry.target;
-            const index = parseInt(img.dataset.index || '0');
-            
-            // 预加载当前可见图片及后续几张
-            const preloadUrls = [];
-            const preloadCount = 10; // 预加载后续10张
-            
-            for (let i = index; i < Math.min(index + preloadCount, items.length); i++) {
-              const item = items[i];
-              if (item && !item.localData) {
-                const url = getThumbnailCallback(item.link || item.name);
-                if (url) {
-                  preloadUrls.push(url);
+    // 如果没有 observer，创建一个
+    if (!this.observer) {
+      this.observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting || entry.intersectionRatio > 0) {
+              const img = entry.target;
+              const index = parseInt(img.dataset.index || '0');
+              
+              // 预加载当前可见图片及后续几张
+              const preloadUrls = [];
+              const preloadCount = 10; // 预加载后续10张
+              
+              for (let i = index; i < Math.min(index + preloadCount, items.length); i++) {
+                const item = items[i];
+                if (item && !item.localData) {
+                  const url = getThumbnailCallback(item.link || item.name, item);
+                  if (url) {
+                    preloadUrls.push(url);
+                  }
                 }
               }
+              
+              if (preloadUrls.length > 0) {
+                this.preloadImages(preloadUrls);
+              }
             }
-            
-            if (preloadUrls.length > 0) {
-              this.preloadImages(preloadUrls);
-            }
-          }
-        });
-      },
-      {
-        // 提前触发 - 当图片距离视口还有1000px时就开始加载
-        rootMargin: '1000px 0px',
-        threshold: 0
-      }
-    );
+          });
+        },
+        {
+          // 提前触发 - 当图片距离视口还有1000px时就开始加载
+          rootMargin: '1000px 0px',
+          threshold: 0
+        }
+      );
+    }
 
-    // 观察所有图片元素
+    // 观察新增的图片元素
     setTimeout(() => {
       const images = document.querySelectorAll('.preview-img');
       images.forEach((img, index) => {
+        // 跳过已观察的图片
+        if (this.observedImages.has(img)) return;
+        
         img.dataset.index = index;
         this.observer.observe(img);
+        this.observedImages.add(img);
       });
-    }, 500);
+    }, 100); // 减少延迟到100ms
   }
 
   // 清除缓存
@@ -159,6 +169,8 @@ export class ImageLoadManager {
     if (this.observer) {
       this.observer.disconnect();
     }
+    this.observedImages.clear();
+    this.preloadedUrls.clear();
   }
 }
 
