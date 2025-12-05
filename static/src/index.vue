@@ -7,20 +7,27 @@ import './common.css'
 import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.js'
 import axios from 'axios'
 import { getThumbnailUrl } from './utils.js'
+import { imageLoadManager } from './sw-register.js'
 
 // 允许任意文件类型，前端仅做大小校验，后端负责类型与分类
 export default{
     data(){
         return{
-        file_info:[],
+        file_info_all:[],  // 全量数据
+        file_info:[],      // 显示的数据
         status:false,
         over_page:false,
         powerby:true,
         breakpoints: {},
-        resizeTimer: null
+        resizeTimer: null,
+        loadBatchSize: 20, // 每次加载数量
+        isLoadingMore: false
         }
     },
     mounted(){
+      // 注册 Service Worker
+      imageLoadManager.register();
+      
       // 初始化自适应布局
       this.calculateBreakpoints();
       
@@ -71,16 +78,63 @@ export default{
       };
       window.removeEventListener('resize', this.calculateBreakpoints);
       window.addEventListener('resize', this._resizeHandler);
+      
+      // 添加滚动监听
+      this._scrollHandler = () => {
+        if (this.isLoadingMore) return;
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+        
+        // 距离底部 800px 时加载更多
+        if (scrollTop + windowHeight >= documentHeight - 800) {
+          this.loadMoreItems();
+        }
+      };
+      window.addEventListener('scroll', this._scrollHandler, { passive: true });
+      
+      // 初始加载
+      this.loadMoreItems();
     },
     beforeUnmount(){
       if (this._docClickHandler) document.removeEventListener('click', this._docClickHandler);
       window.removeEventListener('resize', this.calculateBreakpoints);
+      imageLoadManager.disconnect();
     },
     beforeUnmount(){
       if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
+      if (this._scrollHandler) window.removeEventListener('scroll', this._scrollHandler);
       if (this.resizeTimer) clearTimeout(this.resizeTimer);
     },
     methods:{
+    loadMoreItems(){
+      if (this.isLoadingMore) return;
+      if (this.file_info.length >= this.file_info_all.length) return;
+      
+      this.isLoadingMore = true;
+      const startIdx = this.file_info.length;
+      const endIdx = Math.min(startIdx + this.loadBatchSize, this.file_info_all.length);
+      const newItems = this.file_info_all.slice(startIdx, endIdx);
+      
+      // 追加新项
+      this.file_info.push(...newItems);
+      
+      this.$nextTick(() => {
+        // 触发瀑布流重新布局
+        if (this.$refs.waterfall && this.$refs.waterfall.renderer) {
+          this.$refs.waterfall.renderer();
+        }
+        
+        this.isLoadingMore = false;
+        
+        // 设置智能预加载
+        imageLoadManager.observeImages(
+          this.$refs.waterfall,
+          this.file_info,
+          this.getThumbnailUrl
+        );
+      });
+    },
     calculateBreakpoints(){
       // 获取设备像素比（DPI 相关）
       const dpr = window.devicePixelRatio || 1;
@@ -184,20 +238,24 @@ export default{
                 if (fileObj && r.data.category === 'image') {
                   const reader = new FileReader();
                   reader.onload = (e) => {
-                    that.file_info.unshift({
+                    const newItem = {
                       link: r.data.link,
                       category: r.data.category || 'other',
                       localData: e.target.result,
                       name: fileObj.name || 'file'
-                    });
+                    };
+                    that.file_info_all.unshift(newItem);
+                    that.file_info.unshift(newItem);
                   };
                   reader.readAsDataURL(fileObj);
                 } else {
-                  that.file_info.unshift({
+                  const newItem = {
                     link: r.data.link,
                     category: r.data.category || 'other',
                     name: fileObj ? fileObj.name : 'file'
-                  });
+                  };
+                  that.file_info_all.unshift(newItem);
+                  that.file_info.unshift(newItem);
                 }
             }
           });
@@ -242,22 +300,26 @@ export default{
               if (fileObj && r.data.category === 'image') {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                  that.file_info.unshift({
+                  const newItem = {
                     link: r.data.link,
                     category: r.data.category || 'other',
                     localData: e.target.result,
                     name: fileObj.name || 'file',
                     actionsActive: false
-                  });
+                  };
+                  that.file_info_all.unshift(newItem);
+                  that.file_info.unshift(newItem);
                 };
                 reader.readAsDataURL(fileObj);
               } else {
-                that.file_info.unshift({
+                const newItem = {
                   link: r.data.link,
                   category: r.data.category || 'other',
                   name: fileObj ? fileObj.name : 'file',
                   actionsActive: false
-                });
+                };
+                that.file_info_all.unshift(newItem);
+                that.file_info.unshift(newItem);
               }
             }
           });
@@ -326,6 +388,13 @@ export default{
           });
           if (index !== -1) {
             this.file_info.splice(index, 1);
+          }
+          const indexAll = this.file_info_all.findIndex(item => {
+            const itemFileName = item.link ? item.link.split('/').pop() : item.name;
+            return itemFileName === fileName;
+          });
+          if (indexAll !== -1) {
+            this.file_info_all.splice(indexAll, 1);
           }
         })
         .catch(() => {
@@ -468,13 +537,6 @@ export default{
               <div v-if="isImage(item.category)" class="mdui-card-media media-image">
                 <!-- <div class="image-bg" :style="{backgroundImage: `url(${item.localData || getThumbnailUrl(item.link)})`}"></div> -->
                 <div class="image-wrapper">
-                  <div v-if="!item._imgLoaded && !item.localData" class="image-loading">
-                    <div class="loading-spinner">
-                      <div class="ball ball-1"></div>
-                      <div class="ball ball-2"></div>
-                      <div class="ball ball-3"></div>
-                    </div>
-                  </div>
                   <img 
                     v-if="item.localData" 
                     :src="item.localData" 
@@ -485,9 +547,7 @@ export default{
                     v-else
                     :src="getThumbnailUrl(item.link)" 
                     @click="display(item.link, item.name || 'file')" 
-                    @load="item._imgLoaded = true"
                     class="preview-img"
-                    :style="{display: item._imgLoaded ? 'block' : 'none'}"
                     loading="lazy"
                   />
                 </div>

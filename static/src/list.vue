@@ -6,20 +6,27 @@ import 'vue-waterfall-plugin-next/style.css'
 import './common.css'
 import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.js'
 import { getThumbnailUrl, hashPassword } from './utils.js'
+import { imageLoadManager } from './sw-register.js'
 export default{
     data(){
         return{
-        list:[],
+        list_all:[],   // 全量数据
+        list:[],       // 显示的数据
         auth:true,
         pass:'',
         loading:false,
         cacheExpiry: 30 * 60 * 1000,
         breakpoints: {},
         resizeTimer: null,
-        showScrollTop: false
+        showScrollTop: false,
+        loadBatchSize: 20,
+        isLoadingMore: false
         }
     },
     mounted(){
+      // 注册 Service Worker
+      imageLoadManager.register();
+      
       // 初始化自适应布局
       this.calculateBreakpoints();
       
@@ -31,7 +38,11 @@ export default{
         this.pass = cachedPass;
         this.auth = false;
         if (cachedList) {
-          this.list = JSON.parse(cachedList);
+          this.list_all = JSON.parse(cachedList);
+          // 初始加载
+          this.$nextTick(() => {
+            this.loadMoreItems();
+          });
         }
       }
       // 点击页面其他位置时关闭 overlay 按钮
@@ -55,16 +66,56 @@ export default{
       // 监听滚动事件
       this._scrollHandler = () => {
         this.showScrollTop = window.scrollY > 200;
+        
+        // 动态加载
+        if (this.isLoadingMore || this.auth) return;
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+        
+        // 距离底部 800px 时加载更多
+        if (scrollTop + windowHeight >= documentHeight - 800) {
+          this.loadMoreItems();
+        }
       };
-      window.addEventListener('scroll', this._scrollHandler);
+      window.addEventListener('scroll', this._scrollHandler, { passive: true });
     },
     beforeUnmount(){
       if (this._docClickHandler) document.removeEventListener('click', this._docClickHandler);
       if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
       if (this._scrollHandler) window.removeEventListener('scroll', this._scrollHandler);
       if (this.resizeTimer) clearTimeout(this.resizeTimer);
+      imageLoadManager.disconnect();
     },
     methods:{
+      loadMoreItems(){
+        if (this.isLoadingMore) return;
+        if (this.list.length >= this.list_all.length) return;
+        
+        this.isLoadingMore = true;
+        const startIdx = this.list.length;
+        const endIdx = Math.min(startIdx + this.loadBatchSize, this.list_all.length);
+        const newItems = this.list_all.slice(startIdx, endIdx);
+        
+        // 追加新项
+        this.list.push(...newItems);
+        
+        this.$nextTick(() => {
+          // 触发瀑布流重新布局
+          if (this.$refs.waterfall && this.$refs.waterfall.renderer) {
+            this.$refs.waterfall.renderer();
+          }
+          
+          this.isLoadingMore = false;
+          
+          // 设置智能预加载
+          imageLoadManager.observeImages(
+            this.$refs.waterfall,
+            this.list,
+            (name) => this.getThumbnailUrl(name)
+          );
+        });
+      },
       calculateBreakpoints(){
         // 获取设备像素比（DPI 相关）
         const dpr = window.devicePixelRatio || 1;
@@ -147,21 +198,26 @@ export default{
           }
             throw response
         }).then((succ)=>{
+            this.list_all = [];
             this.list = [];
             for (let i = 0; i < succ.keys.length; i++) {
                   const it = succ.keys[i];
                   // ensure action toggle flag
                   it._actionsActive = false;
-                  this.list.push(it);
+                  this.list_all.push(it);
             }
-            this.list.sort((a,b)=>{
+            this.list_all.sort((a,b)=>{
               return b.metadata.date-a.metadata.date
             })
             localStorage.setItem('list_pass', this.pass);
             localStorage.setItem('list_pass_expiry', (Date.now() + this.cacheExpiry).toString());
-            localStorage.setItem('list_data', JSON.stringify(this.list));
+            localStorage.setItem('list_data', JSON.stringify(this.list_all));
             this.auth=false
             this.loading = false;
+            // 初始加载第一批数据
+            this.$nextTick(() => {
+              this.loadMoreItems();
+            });
         }).catch((err)=>{
           mdui.alert('密码错误')
           this.loading = false;
@@ -176,6 +232,7 @@ export default{
       }
       // 清除列表缓存，保留密码缓存以便重新查询
       localStorage.removeItem('list_data');
+      this.list_all = [];
       this.list = [];
       this.query();
     },
@@ -580,18 +637,9 @@ export default{
               <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image" @click="display('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;">
                 <!-- <div class="image-bg" :style="{ backgroundImage: 'url(' + getThumbnailUrl(item.name) + ')' }"></div> -->
                 <div class="image-wrapper">
-                  <div v-if="!item._imgLoaded" class="image-loading">
-                    <div class="loading-spinner">
-                      <div class="ball ball-1"></div>
-                      <div class="ball ball-2"></div>
-                      <div class="ball ball-3"></div>
-                    </div>
-                  </div>
                   <img 
                     :src="getThumbnailUrl(item.name)" 
-                    @load="item._imgLoaded = true"
                     class="preview-img"
-                    :style="{display: item._imgLoaded ? 'block' : 'none'}"
                     loading="lazy"
                   />
                 </div>
