@@ -36,7 +36,7 @@ export default{
       }
       // 点击页面其他位置时关闭 overlay 按钮
       this._docClickHandler = (e) => {
-        if (e.target.closest && e.target.closest('.image-wrapper')) return;
+        if (e.target.closest && e.target.closest('.media-image')) return;
         this.list.forEach(it => { if (it._actionsActive) it._actionsActive = false; });
       };
       document.addEventListener('click', this._docClickHandler);
