@@ -295,28 +295,28 @@ export default{
       
       // 根据是否为图片调整布局
       const leftContent = isImage 
-        ? `<div class="file-thumbnail" style="width:120px;height:120px;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.15);background:#f5f5f5;"><img src="${thumbnailUrl}" style="width:100%;height:100%;object-fit:cover;"></div>`
-        : `<i class="mdui-icon material-icons" style="font-size:80px;color:#666;">${icon}</i>`;
+        ? `<div class="file-thumbnail" style="width:100%;max-width:120px;aspect-ratio:1;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.15);background:#f5f5f5;"><img src="${thumbnailUrl}" style="width:100%;height:100%;object-fit:cover;"></div>`
+        : `<i class="mdui-icon material-icons" style="font-size:min(80px, 15vw);color:#666;">${icon}</i>`;
       
-      const leftWidth = isImage ? '120px' : '33.33%';
+      const leftWidth = isImage ? 'min(120px, 25vw)' : '33.33%';
       const leftPadding = isImage ? '0' : '';
       
       modal.innerHTML = `
         <div class="file-info-content" style="background:white;border-radius:8px;width:500px;max-width:90vw;overflow:hidden;transform:scale(0.7);opacity:0;transition:transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;">
-          <div class="file-info-header" style="display:flex;align-items:center;padding:24px;gap:20px;border-bottom:1px solid #eee;">
+          <div class="file-info-header" style="display:flex;align-items:center;padding:min(24px, 4vw);gap:min(20px, 3vw);border-bottom:1px solid #eee;">
             <div class="file-icon-large" style="flex:0 0 ${leftWidth};display:flex;align-items:center;justify-content:center;${leftPadding}">
               ${leftContent}
             </div>
-            <div class="file-actions" style="flex:1;display:flex;gap:12px;justify-content:flex-end;">
-              <button class="action-btn" data-action="copy" style="padding:8px 16px;border:1px solid #ddd;border-radius:4px;background:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
+            <div class="file-actions" style="flex:1;display:flex;gap:min(12px, 2vw);justify-content:flex-end;flex-wrap:wrap;">
+              <button class="action-btn" data-action="copy" style="padding:8px 16px;border:1px solid #ddd;border-radius:4px;background:white;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:14px;">
                 <i class="mdui-icon material-icons" style="font-size:18px;">content_copy</i>
                 <span>复制</span>
               </button>
-              <button class="action-btn" data-action="download" style="padding:8px 16px;border:1px solid #ddd;border-radius:4px;background:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
+              <button class="action-btn" data-action="download" style="padding:8px 16px;border:1px solid #ddd;border-radius:4px;background:white;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:14px;">
                 <i class="mdui-icon material-icons" style="font-size:18px;">get_app</i>
                 <span>下载</span>
               </button>
-              <button class="action-btn" data-action="delete" style="padding:8px 16px;border:none;border-radius:4px;background-color:red !important;color:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
+              <button class="action-btn" data-action="delete" style="padding:8px 16px;border:none;border-radius:4px;background-color:red !important;color:white;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:14px;">
                 <i class="mdui-icon material-icons" style="font-size:18px;">delete</i>
                 <span>删除</span>
               </button>
