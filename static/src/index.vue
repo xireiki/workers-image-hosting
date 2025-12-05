@@ -441,14 +441,6 @@ export default{
           if (fileInfoAllIndex !== -1) {
             this.file_info_all.splice(fileInfoAllIndex, 1);
           }
-          
-          // 尝试保存到 localStorage，失败则忽略（主页不需要持久化）
-          try {
-            localStorage.setItem('img_info', JSON.stringify(this.file_info_all));
-          } catch (e) {
-            // QuotaExceededError - 忽略，主页数据刷新后重置
-            console.warn('localStorage 空间不足，跳过保存');
-          }
         })
         .catch(err => {
           console.error('删除失败:', err);
