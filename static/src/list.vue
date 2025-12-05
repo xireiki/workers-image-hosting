@@ -153,7 +153,7 @@ export default{
         // 定义理想的卡片宽度范围（单位：px）
         // 考虑 DPI：高 DPI 设备上可以显示更多细节
         const minCardWidth = 150 / Math.max(dpr * 0.8, 1); // 最小卡片宽度
-        const idealCardWidth = 220 / Math.max(dpr * 0.8, 1); // 理想卡片宽度
+        const idealCardWidth = 320 / Math.max(dpr * 0.8, 1); // 理想卡片宽度
         const maxCardWidth = 320 / Math.max(dpr * 0.8, 1); // 最大卡片宽度
         
         // 卡片间距
