@@ -466,10 +466,30 @@ export default{
           <template #item="{ item, url, index }">
             <div class="mdui-card card-min">
               <div v-if="isImage(item.category)" class="mdui-card-media media-image">
-                <div class="image-bg" :style="{backgroundImage: `url(${item.localData || getThumbnailUrl(item.link)})`}"></div>
+                <!-- <div class="image-bg" :style="{backgroundImage: `url(${item.localData || getThumbnailUrl(item.link)})`}"></div> -->
                 <div class="image-wrapper">
-                  <img v-if="item.localData" :src="item.localData" @click="display(item.localData, item.name || 'file')" class="preview-img" />
-                  <LazyImg v-else :url="getThumbnailUrl(item.link)" @click="display(item.link, item.name || 'file')" class="preview-img" />
+                  <div v-if="!item._imgLoaded && !item.localData" class="image-loading">
+                    <div class="loading-spinner">
+                      <div class="ball ball-1"></div>
+                      <div class="ball ball-2"></div>
+                      <div class="ball ball-3"></div>
+                    </div>
+                  </div>
+                  <img 
+                    v-if="item.localData" 
+                    :src="item.localData" 
+                    @click="display(item.localData, item.name || 'file')" 
+                    class="preview-img" 
+                  />
+                  <img 
+                    v-else
+                    :src="getThumbnailUrl(item.link)" 
+                    @click="display(item.link, item.name || 'file')" 
+                    @load="item._imgLoaded = true"
+                    class="preview-img"
+                    :style="{display: item._imgLoaded ? 'block' : 'none'}"
+                    loading="lazy"
+                  />
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">

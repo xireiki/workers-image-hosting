@@ -578,9 +578,22 @@ export default{
           <template #item="{ item, url, index }">
             <div class="mdui-card card-min">
               <div v-if="isImage(item.metadata.category)" class="mdui-card-media media-image" @click="display('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;">
-                <div class="image-bg" :style="{ backgroundImage: 'url(' + getThumbnailUrl(item.name) + ')' }"></div>
+                <!-- <div class="image-bg" :style="{ backgroundImage: 'url(' + getThumbnailUrl(item.name) + ')' }"></div> -->
                 <div class="image-wrapper">
-                  <LazyImg :url="getThumbnailUrl(item.name)" class="preview-img"></LazyImg>
+                  <div v-if="!item._imgLoaded" class="image-loading">
+                    <div class="loading-spinner">
+                      <div class="ball ball-1"></div>
+                      <div class="ball ball-2"></div>
+                      <div class="ball ball-3"></div>
+                    </div>
+                  </div>
+                  <img 
+                    :src="getThumbnailUrl(item.name)" 
+                    @load="item._imgLoaded = true"
+                    class="preview-img"
+                    :style="{display: item._imgLoaded ? 'block' : 'none'}"
+                    loading="lazy"
+                  />
                 </div>
                 <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
