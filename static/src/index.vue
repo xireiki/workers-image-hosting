@@ -339,6 +339,20 @@ export default{
       if (!originalUrl || originalUrl.startsWith('data:')) {
         return originalUrl;
       }
+      
+      // 检查是否是内网地址
+      const hostname = window.location.hostname;
+      const isLocalNetwork = hostname === 'localhost' || 
+                            hostname === '127.0.0.1' || 
+                            hostname.startsWith('192.168.') || 
+                            hostname.startsWith('10.') || 
+                            hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./); // 172.16.0.0/12
+      
+      // 内网环境直接返回原图
+      if (isLocalNetwork) {
+        return originalUrl;
+      }
+      
       // 计算合适的缩略图宽度（基于屏幕宽度）
       const screenWidth = window.innerWidth;
       const dpr = window.devicePixelRatio || 1;
