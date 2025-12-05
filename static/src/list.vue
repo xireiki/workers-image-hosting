@@ -196,22 +196,56 @@ export default{
         return iconMap[category] || 'insert_drive_file';
     },
     display(e, fileName){
-      const gallery = new Viewer(e, {
-        title: function(image) {
-          return fileName || image.alt || '';
-        },
-        toolbar: {
-          zoomIn: 1,
-          zoomOut: 1,
-          oneToOne: 1,
-          reset: 1,
-          rotateLeft: 1,
-          rotateRight: 1,
-          flipHorizontal: 1,
-          flipVertical: 1,
-        }
-      });
-      gallery.show();
+      // 创建加载动画元素
+      const loader = document.createElement('div');
+      loader.className = 'image-loader';
+      loader.innerHTML = '<div class="spinner"></div>';
+      loader.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999;';
+      const spinner = loader.querySelector('.spinner');
+      spinner.style.cssText = 'border:4px solid #f3f3f3;border-top:4px solid #3498db;border-radius:50%;width:50px;height:50px;animation:spin 1s linear infinite;';
+      document.body.appendChild(loader);
+      
+      // 添加旋转动画
+      if (!document.getElementById('spin-keyframes')) {
+        const style = document.createElement('style');
+        style.id = 'spin-keyframes';
+        style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+        document.head.appendChild(style);
+      }
+      
+      // 获取原图 URL
+      const originalUrl = e.getAttribute('data-original') || e.src;
+      
+      // 预加载原图
+      const img = new Image();
+      img.onload = () => {
+        // 加载完成，移除加载动画
+        document.body.removeChild(loader);
+        
+        // 显示预览
+        const gallery = new Viewer(img, {
+          title: function(image) {
+            return fileName || image.alt || '';
+          },
+          toolbar: {
+            zoomIn: 1,
+            zoomOut: 1,
+            oneToOne: 1,
+            reset: 1,
+            rotateLeft: 1,
+            rotateRight: 1,
+            flipHorizontal: 1,
+            flipVertical: 1,
+          }
+        });
+        gallery.show();
+      };
+      img.onerror = () => {
+        // 加载失败，移除加载动画
+        document.body.removeChild(loader);
+        mdui.alert('图片加载失败');
+      };
+      img.src = originalUrl;
     },
       toggleListActions(index){
         if (!this.list[index]) return;
