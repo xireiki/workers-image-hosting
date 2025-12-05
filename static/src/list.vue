@@ -290,12 +290,22 @@ export default{
       const category = item.metadata.category || 'other';
       const icon = this.getFileIcon(category);
       const fileUrl = `/api/file/${item.name}`;
+      const isImage = category === 'image';
+      const thumbnailUrl = isImage ? this.getThumbnailUrl(item.name) : '';
+      
+      // 根据是否为图片调整布局
+      const leftContent = isImage 
+        ? `<div class="file-thumbnail" style="width:120px;height:120px;border-radius:4px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.15);background:#f5f5f5;"><img src="${thumbnailUrl}" style="width:100%;height:100%;object-fit:cover;"></div>`
+        : `<i class="mdui-icon material-icons" style="font-size:80px;color:#666;">${icon}</i>`;
+      
+      const leftWidth = isImage ? '120px' : '33.33%';
+      const leftPadding = isImage ? '0' : '';
       
       modal.innerHTML = `
         <div class="file-info-content" style="background:white;border-radius:8px;width:500px;max-width:90vw;overflow:hidden;transform:scale(0.7);opacity:0;transition:transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;">
-          <div class="file-info-header" style="display:flex;align-items:center;padding:24px;border-bottom:1px solid #eee;">
-            <div class="file-icon-large" style="flex:0 0 33.33%;display:flex;align-items:center;justify-content:center;">
-              <i class="mdui-icon material-icons" style="font-size:80px;color:#666;">${icon}</i>
+          <div class="file-info-header" style="display:flex;align-items:center;padding:24px;gap:20px;border-bottom:1px solid #eee;">
+            <div class="file-icon-large" style="flex:0 0 ${leftWidth};display:flex;align-items:center;justify-content:center;${leftPadding}">
+              ${leftContent}
             </div>
             <div class="file-actions" style="flex:1;display:flex;gap:12px;justify-content:flex-end;">
               <button class="action-btn" data-action="copy" style="padding:8px 16px;border:1px solid #ddd;border-radius:4px;background:white;cursor:pointer;display:flex;align-items:center;gap:4px;">
