@@ -366,8 +366,9 @@ export default{
       });
       
       deleteBtn.addEventListener('click', () => {
-        document.body.removeChild(modal);
         if (!confirm(`确定要删除文件 "${item.metadata.originalName || item.name}" 吗？`)) return;
+        
+        document.body.removeChild(modal);
         
         const deleteUrl = `/api/file/${item.name}`;
         fetch(deleteUrl, { method: 'DELETE' })
