@@ -264,7 +264,7 @@ export default{
       // 创建弹窗
       const modal = document.createElement('div');
       modal.className = 'file-info-modal';
-      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:9999;';
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0);display:flex;align-items:center;justify-content:center;z-index:9999;opacity:0;transition:opacity 0.3s ease, background 0.3s ease;';
       
       // 格式化文件大小
       const formatSize = (bytes) => {
@@ -292,7 +292,7 @@ export default{
       const fileUrl = `/api/file/${item.name}`;
       
       modal.innerHTML = `
-        <div class="file-info-content" style="background:white;border-radius:8px;width:500px;max-width:90vw;overflow:hidden;">
+        <div class="file-info-content" style="background:white;border-radius:8px;width:500px;max-width:90vw;overflow:hidden;transform:scale(0.7);opacity:0;transition:transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;">
           <div class="file-info-header" style="display:flex;align-items:center;padding:24px;border-bottom:1px solid #eee;">
             <div class="file-icon-large" style="flex:0 0 33.33%;display:flex;align-items:center;justify-content:center;">
               <i class="mdui-icon material-icons" style="font-size:80px;color:#666;">${icon}</i>
@@ -335,10 +335,26 @@ export default{
       
       document.body.appendChild(modal);
       
+      // 触发动画
+      const content = modal.querySelector('.file-info-content');
+      setTimeout(() => {
+        modal.style.opacity = '1';
+        modal.style.background = 'rgba(0,0,0,0.8)';
+        content.style.transform = 'scale(1)';
+        content.style.opacity = '1';
+      }, 10);
+      
       // 点击背景关闭
       modal.addEventListener('click', (e) => {
         if (e.target === modal) {
-          document.body.removeChild(modal);
+          // 关闭动画
+          modal.style.opacity = '0';
+          modal.style.background = 'rgba(0,0,0,0)';
+          content.style.transform = 'scale(0.7)';
+          content.style.opacity = '0';
+          setTimeout(() => {
+            document.body.removeChild(modal);
+          }, 300);
         }
       });
       
@@ -368,7 +384,14 @@ export default{
       deleteBtn.addEventListener('click', () => {
         if (!confirm(`确定要删除文件 "${item.metadata.originalName || item.name}" 吗？`)) return;
         
-        document.body.removeChild(modal);
+        // 关闭动画
+        modal.style.opacity = '0';
+        modal.style.background = 'rgba(0,0,0,0)';
+        content.style.transform = 'scale(0.7)';
+        content.style.opacity = '0';
+        setTimeout(() => {
+          document.body.removeChild(modal);
+        }, 300);
         
         const deleteUrl = `/api/file/${item.name}`;
         fetch(deleteUrl, { method: 'DELETE' })
