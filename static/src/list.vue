@@ -235,9 +235,9 @@ export default {
     async hashPassword(password) {
       return hashPassword(password);
     },
-    async query(pass = "") {
+    async query(pass = null) {
       this.loading = true;
-      const hashedPass = pass ?? await this.hashPassword(this.pass);
+      let hashedPass = (typeof pass === 'string') ? pass : await this.hashPassword(this.pass);
       fetch(`/query?pass=${hashedPass}`, {
         method: 'GET'
       }).then((response) => {
@@ -261,6 +261,20 @@ export default {
           return b.metadata.date - a.metadata.date
         })
         this.list = this.list_all.slice();
+        // 刷新后异步加载音视频封面
+        this.list.forEach(async (item, idx) => {
+          if (item.metadata.category === 'video') {
+            const coverUrl = await this.extractVideoFrame(`/api/file/${item.name}`);
+            if (coverUrl) {
+              this.list[idx]._coverUrl = coverUrl;
+            }
+          } else if (item.metadata.category === 'sound') {
+            const coverUrl = await this.extractMediaCover(`/api/file/${item.name}`);
+            if (coverUrl) {
+              this.list[idx]._coverUrl = coverUrl;
+            }
+          }
+        });
         sessionStorage.setItem('pass', hashedPass);
         localStorage.setItem('list_data', JSON.stringify(this.list_all));
         this.auth = false;
@@ -298,34 +312,54 @@ export default {
 
     async extractMediaCover(fileUrl) {
       try {
-        // 使用 Range 请求获取文件前 2MB 的数据
-        const response = await fetch(fileUrl, {
+        // 第一次请求前1MB
+        const firstRange = 1048576;
+        let response = await fetch(fileUrl, {
           headers: {
-            'Range': 'bytes=0-2097151' // 0-2MB
+            'Range': `bytes=0-${firstRange-1}`
           }
         });
-
         if (!response.ok && response.status !== 206) {
           return null;
         }
-
-        const blob = await response.blob();
-
-        // 尝试解析元数据获取封面
+        let blob = await response.blob();
+        let metadata;
         try {
-          const metadata = await mm.parseBlob(blob, { skipCovers: false });
-
-          // 提取封面图片
-          if (metadata.common?.picture && metadata.common.picture.length > 0) {
-            const picture = metadata.common.picture[0];
+          metadata = await mm.parseBlob(blob, { skipCovers: false });
+        } catch (metadataError) {
+          mdui.snackbar('封面解析失败，可能图片过大，请重新上传或压缩音频封面');
+          return null;
+        }
+        if (metadata.common?.picture && metadata.common.picture.length > 0) {
+          const picture = metadata.common.picture[0];
+          // 如果 picture.data.length < picture.size，则继续补齐
+          if (picture.size && picture.data.length < picture.size) {
+            // 计算还需下载的字节
+            const remain = picture.size - picture.data.length;
+            const start = firstRange;
+            const end = start + remain - 1;
+            let res2 = await fetch(fileUrl, {
+              headers: {
+                'Range': `bytes=${start}-${end}`
+              }
+            });
+            if (res2.ok || res2.status === 206) {
+              let blob2 = await res2.blob();
+              // 合并数据
+              const arr1 = new Uint8Array(picture.data);
+              const arr2 = new Uint8Array(await blob2.arrayBuffer());
+              const merged = new Uint8Array(arr1.length + arr2.length);
+              merged.set(arr1, 0);
+              merged.set(arr2, arr1.length);
+              const coverBlob = new Blob([merged], { type: picture.format });
+              return URL.createObjectURL(coverBlob);
+            }
+          } else {
+            // 已完整
             const coverBlob = new Blob([picture.data], { type: picture.format });
             return URL.createObjectURL(coverBlob);
           }
-        } catch (metadataError) {
-          // 元数据解析失败，对于视频文件尝试提取第一帧
-          console.log('Metadata parsing failed, trying video frame extraction');
         }
-
         return null;
       } catch (error) {
         console.warn('Failed to extract cover:', error);

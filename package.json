@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "cd .\\static && npm run build"
+    "build": "npm --prefix static run build"
   },
   "author": "",
   "license": "ISC",
