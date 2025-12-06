@@ -447,10 +447,10 @@ export default {
         modal.innerHTML = `
           <div style="display:flex;flex-direction:column;gap:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;color:white;">
-              <h3 style="margin:0;font-size:18px;">${fileName || '视频播放'}</h3>
+              <h3 style="margin:0;font-size:18px;max-width:75vw;">${fileName || '视频播放'}</h3>
               <button class="close-btn" style="background:rgba(255,255,255,0.2);border:none;color:white;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:20px;">&times;</button>
             </div>
-            <video controls autoplay style="width:${playerWidth}px;height:${playerHeight}px;background:#000;border-radius:8px;">
+            <video controls autoplay style="width:${playerWidth}px;height:${playerHeight}px;background:#000;border-radius:8px;margin-left:auto;margin-right:auto;">
               <source src="${videoUrl}" type="video/mp4">
               您的浏览器不支持视频播放。
             </video>
