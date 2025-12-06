@@ -268,7 +268,9 @@ export default{
                       category: r.data.category || 'other',
                       localData: e.target.result,
                       name: fileObj.name || 'file',
-                      deleteToken: r.data.deleteToken  // 保存 token
+                      deleteToken: r.data.deleteToken,
+                      _imageLoading: true,
+                      actionsActive: false
                     };
                     that.file_info_all.unshift(newItem);
                     that.file_info.unshift(newItem);
@@ -279,7 +281,9 @@ export default{
                     link: r.data.link,
                     category: r.data.category || 'other',
                     name: fileObj ? fileObj.name : 'file',
-                    deleteToken: r.data.deleteToken  // 保存 token
+                    deleteToken: r.data.deleteToken,
+                    _imageLoading: false,  // 非图片不需要加载
+                    actionsActive: false
                   };
                   that.file_info_all.unshift(newItem);
                   that.file_info.unshift(newItem);
@@ -287,6 +291,8 @@ export default{
             }
           });
             that.status = false;
+            // 上传完成后关闭首次加载遮罩
+            that.isFirstLoad = false;
         }).catch(err=>{
           mdui.alert((err && err.response && err.response.data && err.response.data.info) || '上传失败');
           that.status = false;
@@ -333,7 +339,8 @@ export default{
                     localData: e.target.result,
                     name: fileObj.name || 'file',
                     actionsActive: false,
-                    deleteToken: r.data.deleteToken  // 保存 token
+                    deleteToken: r.data.deleteToken,
+                    _imageLoading: true
                   };
                   that.file_info_all.unshift(newItem);
                   that.file_info.unshift(newItem);
@@ -345,7 +352,8 @@ export default{
                   category: r.data.category || 'other',
                   name: fileObj ? fileObj.name : 'file',
                   actionsActive: false,
-                  deleteToken: r.data.deleteToken  // 保存 token
+                  deleteToken: r.data.deleteToken,
+                  _imageLoading: false  // 非图片不需要加载
                 };
                 that.file_info_all.unshift(newItem);
                 that.file_info.unshift(newItem);
@@ -353,6 +361,8 @@ export default{
             }
           });
             that.status = false;
+            // 上传完成后关闭首次加载遮罩
+            that.isFirstLoad = false;
         }).catch(err=>{
             mdui.alert((err && err.response && err.response.data && err.response.data.info) || '上传失败');
             that.status=false;
