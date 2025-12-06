@@ -460,8 +460,8 @@ router.get('/query', async ({ req, res }) => {
           return true;
         })
       };
-      
-      res.body = filteredKeys;
+
+      res.body = filteredKeys; 
       return;
     }
   }

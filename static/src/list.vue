@@ -11,6 +11,7 @@ import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.js'
 import { getThumbnailUrl, hashPassword } from './utils.js'
 import { imageLoadManager } from './sw-register.js'
 import * as mm from 'music-metadata-browser';
+import { h } from 'vue';
 export default {
   data() {
     return {
@@ -234,10 +235,9 @@ export default {
     async hashPassword(password) {
       return hashPassword(password);
     },
-    async query() {
+    async query(pass = "") {
       this.loading = true;
-      const hashedPass = await this.hashPassword(this.pass);
-      sessionStorage.setItem('pass', hashedPass);
+      const hashedPass = pass ?? await this.hashPassword(this.pass);
       fetch(`/query?pass=${hashedPass}`, {
         method: 'GET'
       }).then((response) => {
@@ -257,6 +257,12 @@ export default {
           this.list_all.push(it);
           this.list.push(it);
         }
+        this.list_all.sort((a, b) => {
+          return b.metadata.date - a.metadata.date
+        })
+        this.list = this.list_all.slice();
+        sessionStorage.setItem('pass', hashedPass);
+        localStorage.setItem('list_data', JSON.stringify(this.list_all));
         this.auth = false;
         this.loading = false;
       }).catch(async err => {
@@ -281,7 +287,7 @@ export default {
       localStorage.removeItem('list_data');
       this.list_all = [];
       this.list = [];
-      this.query();
+      this.query(currentPass);
     },
     isImage(category) {
       return category === 'image';
@@ -1293,7 +1299,7 @@ export default {
                   <div class="left-info">
                     <div class="category-tag" :title="item.metadata.category">
                       <i class="mdui-icon material-icons" style="font-size:16px">{{ getFileIcon(item.metadata.category)
-                        }}</i>
+                      }}</i>
                     </div>
                     <div class="file-name-scroll" :title="item.metadata.originalName || item.name">{{
                       item.metadata.originalName || item.name }}</div>
