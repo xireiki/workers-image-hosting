@@ -145,24 +145,69 @@ router.post('/api', async ({ req, res }) => {
   // 生成删除 token
   const deleteToken = await generateDeleteToken();
 
-  const stream = file.stream();
-  await LINK.put(url, stream, {
-    metadata: {
-      size: file.size,
-      name: url,
-      originalName: file.name,
-      type: file.type,
-      date: new Date().getTime(),
-      category: category,
-      deleteToken: deleteToken  // 存储删除 token
+  const fileSize = file.size;
+  const CHUNK_SIZE = 25 * 1024 * 1024; // 25MB 分片大小
+  
+  // 如果文件大于 25MB，进行分片存储
+  if (fileSize > CHUNK_SIZE) {
+    const arrayBuffer = await file.arrayBuffer();
+    const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+    const sliceKeys = [];
+    
+    // 存储每个分片
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const end = Math.min(start + CHUNK_SIZE, fileSize);
+      const chunk = arrayBuffer.slice(start, end);
+      
+      // 生成分片的 key
+      const sliceKey = `${url}_slice_${i}`;
+      sliceKeys.push(sliceKey);
+      
+      // 存储分片，标记为 isSlice
+      await LINK.put(sliceKey, chunk, {
+        metadata: {
+          isSlice: true,
+          parentKey: url,
+          sliceIndex: i
+        }
+      });
     }
-  });
+    
+    // 存储主文件的元数据（不存储实际内容）
+    await LINK.put(url, '', {
+      metadata: {
+        size: fileSize,
+        name: url,
+        originalName: file.name,
+        type: file.type,
+        date: new Date().getTime(),
+        category: category,
+        deleteToken: deleteToken,
+        sliceList: JSON.stringify(sliceKeys)  // 存储分片列表
+      }
+    });
+  } else {
+    // 小于 25MB，直接存储
+    const stream = file.stream();
+    await LINK.put(url, stream, {
+      metadata: {
+        size: fileSize,
+        name: url,
+        originalName: file.name,
+        type: file.type,
+        date: new Date().getTime(),
+        category: category,
+        deleteToken: deleteToken
+      }
+    });
+  }
 
   res.headers = header;
   res.body = {
     link: req.url + '/file/' + url,
     category: category,
-    deleteToken: deleteToken  // 返回删除 token
+    deleteToken: deleteToken
   };
 });
 
@@ -209,7 +254,6 @@ router.get('/api/thumb/:p', async ({ req, res }) => {
 
 // 获取文件（返回二进制流并在头部包含 category）
 router.get('/api/file/:p', async ({ req, res }) => {
-  const body = await LINK.get(req.params.p, { cacheTtl: 864000, type: "stream" });
   const { metadata } = await LINK.getWithMetadata(req.params.p, { type: "text" });
   const type = metadata && metadata.type ? metadata.type : 'application/octet-stream';
   const size = metadata && metadata.size ? metadata.size : null;
@@ -221,13 +265,48 @@ router.get('/api/file/:p', async ({ req, res }) => {
     return;
   }
 
-  res.headers = header;
-  res.headers.set('Cache-Control', 'public, max-age=864000');
-  res.headers.set('Content-Type', type);
-  res.headers.set('X-Category', category);
-  res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
-  if (size !== null) res.etag = size;
-  res.body = body;
+  // 检查是否是分片文件
+  if (metadata && metadata.sliceList) {
+    // 读取并拼接所有分片
+    const sliceKeys = JSON.parse(metadata.sliceList);
+    const chunks = [];
+    
+    for (const sliceKey of sliceKeys) {
+      const chunk = await LINK.get(sliceKey, { cacheTtl: 864000, type: "arrayBuffer" });
+      if (chunk) {
+        chunks.push(chunk);
+      }
+    }
+    
+    // 拼接所有分片
+    const totalSize = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const mergedBuffer = new Uint8Array(totalSize);
+    let offset = 0;
+    
+    for (const chunk of chunks) {
+      mergedBuffer.set(new Uint8Array(chunk), offset);
+      offset += chunk.byteLength;
+    }
+    
+    res.headers = header;
+    res.headers.set('Cache-Control', 'public, max-age=864000');
+    res.headers.set('Content-Type', type);
+    res.headers.set('X-Category', category);
+    res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+    if (size !== null) res.etag = size;
+    res.body = mergedBuffer.buffer;
+  } else {
+    // 非分片文件，直接读取
+    const body = await LINK.get(req.params.p, { cacheTtl: 864000, type: "stream" });
+    
+    res.headers = header;
+    res.headers.set('Cache-Control', 'public, max-age=864000');
+    res.headers.set('Content-Type', type);
+    res.headers.set('X-Category', category);
+    res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+    if (size !== null) res.etag = size;
+    res.body = body;
+  }
 });
 
 // 简易登陆验证
@@ -237,8 +316,21 @@ router.get('/query', async ({ req, res }) => {
   if (provided && PASS) {
     const hashedPass = await hashPassword(PASS);
     if (provided === hashedPass) {
-      const key = await LINK.list();
-      res.body = key;
+      const allKeys = await LINK.list();
+      
+      // 过滤掉 isSlice 为 true 的项
+      const filteredKeys = {
+        ...allKeys,
+        keys: allKeys.keys.filter(item => {
+          // 过滤掉分片文件
+          if (item.metadata && item.metadata.isSlice) {
+            return false;
+          }
+          return true;
+        })
+      };
+      
+      res.body = filteredKeys;
       return;
     }
   }
@@ -307,6 +399,16 @@ router.delete('/api/file/:p', async ({ req, res }) => {
   }
 
   try {
+    // 检查是否有分片
+    if (metadata && metadata.sliceList) {
+      const sliceKeys = JSON.parse(metadata.sliceList);
+      // 删除所有分片
+      for (const sliceKey of sliceKeys) {
+        await LINK.delete(sliceKey);
+      }
+    }
+    
+    // 删除主文件
     await LINK.delete(fileKey);
     res.status = 200;
     res.headers = header;
