@@ -379,7 +379,15 @@ export default{
             // 上传完成后关闭首次加载遮罩
             that.isFirstLoad = false;
         }).catch(err=>{
-          mdui.alert((err && err.response && err.response.data && err.response.data.info) || '上传失败');
+          // 如果是密码错误，清除sessionStorage并提示重新输入
+          if (err && err.response && err.response.status === 403) {
+            sessionStorage.removeItem('pass');
+            mdui.alert('密码错误，请重新输入', () => {
+              location.reload();
+            });
+          } else {
+            mdui.alert((err && err.response && err.response.data && err.response.data.info) || '上传失败');
+          }
           that.status = false;
         })
     },
@@ -464,7 +472,15 @@ export default{
             // 上传完成后关闭首次加载遮罩
             that.isFirstLoad = false;
         }).catch(err=>{
-            mdui.alert((err && err.response && err.response.data && err.response.data.info) || '上传失败');
+            // 如果是密码错误，清除sessionStorage并提示重新输入
+            if (err && err.response && err.response.status === 403) {
+              sessionStorage.removeItem('pass');
+              mdui.alert('密码错误，请重新输入', () => {
+                location.reload();
+              });
+            } else {
+              mdui.alert((err && err.response && err.response.data && err.response.data.info) || '上传失败');
+            }
             that.status=false;
         })
     },
