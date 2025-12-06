@@ -1,4 +1,7 @@
 <script>
+import { Buffer } from 'buffer';
+window.Buffer = Buffer;
+
 import { LazyImg, Waterfall } from 'vue-waterfall-plugin-next'
 import Loading from 'vue-loading-overlay';
 import 'vue-loading-overlay/dist/css/index.css';
@@ -8,6 +11,7 @@ import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.js'
 import axios from 'axios'
 import { getThumbnailUrl } from './utils.js'
 import { imageLoadManager } from './sw-register.js'
+import * as mm from 'music-metadata-browser';
 
 // 允许任意文件类型，前端仅做大小校验，后端负责类型与分类
 export default{
@@ -473,6 +477,295 @@ export default{
       };
       return iconMap[category] || 'insert_drive_file';
     },
+    displayVideo(videoUrl, fileName) {
+      const modal = document.createElement('div');
+      modal.className = 'media-player-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+      
+      modal.innerHTML = `
+        <div style="width:100%;max-width:1200px;display:flex;flex-direction:column;gap:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;color:white;">
+            <h3 style="margin:0;font-size:18px;">${fileName || '视频播放'}</h3>
+            <button class="close-btn" style="background:rgba(255,255,255,0.2);border:none;color:white;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:20px;">&times;</button>
+          </div>
+          <video controls autoplay style="width:100%;max-height:70vh;background:#000;border-radius:8px;">
+            <source src="${videoUrl}" type="video/mp4">
+            您的浏览器不支持视频播放。
+          </video>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      const closeBtn = modal.querySelector('.close-btn');
+      closeBtn.addEventListener('click', () => {
+        document.body.removeChild(modal);
+      });
+      
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          document.body.removeChild(modal);
+        }
+      });
+    },
+    async displayAudio(audioUrl, fileName) {
+      const modal = document.createElement('div');
+      modal.className = 'media-player-modal';
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;overflow:auto;';
+      
+      // 尝试获取音频元数据
+      let metadata = {
+        title: fileName || '未知歌曲',
+        artist: '加载中...',
+        album: '加载中...',
+        duration: 0
+      };
+      
+      modal.innerHTML = `
+        <div style="width:100%;max-width:800px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+          <div style="padding:32px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+              <h3 style="margin:0;color:white;font-size:24px;font-weight:600;">音频播放器</h3>
+              <button class="close-btn" style="background:rgba(255,255,255,0.2);border:none;color:white;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:24px;transition:all 0.3s;">&times;</button>
+            </div>
+            
+            <div style="background:rgba(255,255,255,0.1);border-radius:12px;padding:24px;margin-bottom:24px;">
+              <div class="song-info" style="color:white;margin-bottom:16px;">
+                <div style="font-size:20px;font-weight:600;margin-bottom:8px;" class="song-title">${metadata.title}</div>
+                <div style="font-size:14px;opacity:0.9;" class="song-artist">${metadata.artist}</div>
+                <div style="font-size:12px;opacity:0.7;margin-top:4px;" class="song-album">专辑: ${metadata.album}</div>
+              </div>
+              
+              <audio controls autoplay style="width:100%;margin-bottom:16px;" class="audio-player">
+                <source src="${audioUrl}">
+                您的浏览器不支持音频播放。
+              </audio>
+              
+              <div class="audio-meta" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;color:white;font-size:12px;opacity:0.8;">
+                <div>文件名: <span class="meta-filename">${fileName}</span></div>
+                <div>时长: <span class="meta-duration">--:--</span></div>
+              </div>
+            </div>
+            
+            <div class="lyrics-container" style="background:rgba(255,255,255,0.1);border-radius:12px;padding:20px;max-height:300px;overflow-y:auto;color:white;">
+              <div class="lyrics-title" style="font-size:14px;font-weight:600;margin-bottom:12px;opacity:0.9;">歌词</div>
+              <div class="lyrics-content" style="font-size:14px;line-height:2;opacity:0.8;text-align:center;">
+                <p style="margin:0;opacity:0.5;">暂无歌词</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      const audio = modal.querySelector('.audio-player');
+      const durationEl = modal.querySelector('.meta-duration');
+      const titleEl = modal.querySelector('.song-title');
+      const artistEl = modal.querySelector('.song-artist');
+      const albumEl = modal.querySelector('.song-album');
+      const lyricsEl = modal.querySelector('.lyrics-content');
+      
+      let lyricsData = [];
+      
+      // 解析 LRC 格式歌词
+      const parseLRC = (lrcText) => {
+        const lines = lrcText.split('\n');
+        const timeRegex = /\[(\d{2}):(\d{2})(?:\.(\d{2,3}))?\]/g;
+        
+        // 第一遍：解析所有带时间轴的行
+        const lyricsMap = new Map();
+        
+        lines.forEach(line => {
+          const matches = [...line.matchAll(timeRegex)];
+          if (matches.length > 0) {
+            const text = line.replace(timeRegex, '').trim();
+            // 跳过元数据行和空行
+            if (text && !text.startsWith('//') && !/^(ti|ar|al|by|offset):/.test(text)) {
+              matches.forEach(match => {
+                const minutes = parseInt(match[1]);
+                const seconds = parseInt(match[2]);
+                const ms = match[3] ? parseInt(match[3].padEnd(3, '0')) : 0;
+                const time = minutes * 60 + seconds + ms / 1000;
+                const timeKey = time.toFixed(2);
+                
+                if (!lyricsMap.has(timeKey)) {
+                  lyricsMap.set(timeKey, { time, text: '', translation: '' });
+                }
+                
+                // 如果当前位置已有原文，则这是翻译
+                if (lyricsMap.get(timeKey).text) {
+                  lyricsMap.get(timeKey).translation = text;
+                } else {
+                  lyricsMap.get(timeKey).text = text;
+                }
+              });
+            }
+          }
+        });
+        
+        // 转换为数组并排序
+        return Array.from(lyricsMap.values())
+          .sort((a, b) => a.time - b.time);
+      };
+      
+      // 更新当前歌词高亮
+      const updateLyrics = () => {
+        if (lyricsData.length === 0) return;
+        
+        const currentTime = audio.currentTime;
+        let currentIndex = -1;
+        
+        for (let i = 0; i < lyricsData.length; i++) {
+          if (currentTime >= lyricsData[i].time) {
+            currentIndex = i;
+          } else {
+            break;
+          }
+        }
+        
+        const lyricGroups = lyricsEl.querySelectorAll('.lyric-group');
+        lyricGroups.forEach((group, index) => {
+          const mainLine = group.querySelector('.lyric-main');
+          const transLine = group.querySelector('.lyric-trans');
+          
+          if (index === currentIndex) {
+            mainLine.style.opacity = '1';
+            mainLine.style.fontWeight = '600';
+            mainLine.style.transform = 'scale(1.05)';
+            if (transLine) {
+              transLine.style.opacity = '1';
+              transLine.style.fontWeight = '600';
+              transLine.style.transform = 'scale(1.05)';
+            }
+            // 滚动到当前歌词
+            group.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          } else {
+            mainLine.style.opacity = '0.5';
+            mainLine.style.fontWeight = 'normal';
+            mainLine.style.transform = 'scale(1)';
+            if (transLine) {
+              transLine.style.opacity = '0.5';
+              transLine.style.fontWeight = 'normal';
+              transLine.style.transform = 'scale(1)';
+            }
+          }
+        });
+      };
+      
+      // 解析音频元数据
+      try {
+        const response = await fetch(audioUrl);
+        const blob = await response.blob();
+        
+        const parsedMetadata = await mm.parseBlob(blob);
+        
+        if (parsedMetadata.common.title) {
+          titleEl.textContent = parsedMetadata.common.title;
+        }
+        if (parsedMetadata.common.artist) {
+          artistEl.textContent = parsedMetadata.common.artist;
+        }
+        if (parsedMetadata.common.album) {
+          albumEl.textContent = `专辑: ${parsedMetadata.common.album}`;
+        }
+        
+        // 解析歌词
+        if (parsedMetadata.native) {
+          for (const format in parsedMetadata.native) {
+            const usltTag = parsedMetadata.native[format].find(tag => tag.id === 'USLT' || tag.id === 'LYRICS');
+            if (usltTag) {
+              let lyricsText = '';
+              if (usltTag.value && usltTag.value.text) {
+                lyricsText = usltTag.value.text;
+              } else if (typeof usltTag.value === 'string') {
+                lyricsText = usltTag.value;
+              }
+              if (lyricsText) {
+                // 判断是否为 LRC 格式
+                if (lyricsText.includes('[') && /\[\d{2}:\d{2}/.test(lyricsText)) {
+                  lyricsData = parseLRC(lyricsText);
+                  lyricsEl.innerHTML = lyricsData.map((line, index) => {
+                    let html = `<div class="lyric-group" style="margin:12px 0;cursor:pointer;" onclick="document.querySelector('.audio-player').currentTime=${line.time}">`;
+                    
+                    // 主歌词
+                    html += `<p class="lyric-main" data-time="${line.time}" style="margin:0;opacity:0.6;transition:all 0.3s;font-size:16px;line-height:1.4;">${line.text || '&nbsp;'}</p>`;
+                    
+                    // 注音（如果有）
+                    if (line.phonetic) {
+                      html += `<p class="lyric-phonetic" style="margin:1px 0 0 0;opacity:0.4;transition:all 0.3s;font-size:12px;color:#ddd;line-height:1.3;">${line.phonetic}</p>`;
+                    }
+                    
+                    // 翻译（如果有）
+                    if (line.translation) {
+                      html += `<p class="lyric-trans" style="margin:1px 0 0 0;opacity:0.5;transition:all 0.3s;font-size:13px;color:#e0e0e0;line-height:1.4;">${line.translation}</p>`;
+                    }
+                    
+                    html += `</div>`;
+                    return html;
+                  }).join('');
+                  
+                  // 监听播放进度
+                  audio.addEventListener('timeupdate', updateLyrics);
+                } else {
+                  // 普通文本歌词
+                  lyricsEl.innerHTML = lyricsText.split('\n').map(line => 
+                    `<p style="margin:8px 0;opacity:0.8;transition:opacity 0.3s;">${line || '&nbsp;'}</p>`
+                  ).join('');
+                }
+                break;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('解析音频元数据失败:', error);
+        artistEl.textContent = '未知艺术家';
+        albumEl.textContent = '专辑: 未知专辑';
+      }
+      
+      // 更新时长
+      const updateDuration = () => {
+        if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
+          const duration = audio.duration;
+          const minutes = Math.floor(duration / 60);
+          const seconds = Math.floor(duration % 60);
+          durationEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        }
+      };
+      
+      // 如果已经加载完成，立即更新
+      if (audio.readyState >= 1) {
+        updateDuration();
+      }
+      
+      // 监听加载完成事件
+      audio.addEventListener('loadedmetadata', updateDuration);
+      audio.addEventListener('durationchange', updateDuration);
+      
+      const closeBtn = modal.querySelector('.close-btn');
+      closeBtn.addEventListener('click', () => {
+        audio.pause();
+        document.body.removeChild(modal);
+      });
+      
+      closeBtn.addEventListener('mouseenter', () => {
+        closeBtn.style.background = 'rgba(255,255,255,0.3)';
+        closeBtn.style.transform = 'rotate(90deg)';
+      });
+      
+      closeBtn.addEventListener('mouseleave', () => {
+        closeBtn.style.background = 'rgba(255,255,255,0.2)';
+        closeBtn.style.transform = 'rotate(0deg)';
+      });
+      
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          audio.pause();
+          document.body.removeChild(modal);
+        }
+      });
+    },
     display(imageUrl, fileName){
       const startTime = Date.now();
       let loaderShown = false;
@@ -617,6 +910,38 @@ export default{
                     :class="{loaded: item._imageLoading === false}"
                     @load="() => onImageLoad(index)"
                   />
+                </div>
+                <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
+                  <button class="overlay-btn" @click.stop="activateThenCopy(index)">
+                    <i class="mdui-icon material-icons">content_copy</i>
+                  </button>
+                  <button class="overlay-btn" @click.stop="activateThenDownload(index)">
+                    <i class="mdui-icon material-icons">get_app</i>
+                  </button>
+                  <button class="overlay-btn delete" @click.stop="activateThenDelete(index)">
+                    <i class="mdui-icon material-icons">delete</i>
+                  </button>
+                </div>
+              </div>
+              <div v-else-if="item.category === 'video'" class="mdui-card-media media-icon" @click="displayVideo(item.link, item.name || 'video')" style="cursor:pointer;">
+                <div class="file-icon-container">
+                  <i class="mdui-icon material-icons">{{ getFileIcon(item.category) }}</i>
+                </div>
+                <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
+                  <button class="overlay-btn" @click.stop="activateThenCopy(index)">
+                    <i class="mdui-icon material-icons">content_copy</i>
+                  </button>
+                  <button class="overlay-btn" @click.stop="activateThenDownload(index)">
+                    <i class="mdui-icon material-icons">get_app</i>
+                  </button>
+                  <button class="overlay-btn delete" @click.stop="activateThenDelete(index)">
+                    <i class="mdui-icon material-icons">delete</i>
+                  </button>
+                </div>
+              </div>
+              <div v-else-if="item.category === 'sound'" class="mdui-card-media media-icon" @click="displayAudio(item.link, item.name || 'audio')" style="cursor:pointer;">
+                <div class="file-icon-container">
+                  <i class="mdui-icon material-icons">{{ getFileIcon(item.category) }}</i>
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">

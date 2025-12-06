@@ -27,6 +27,14 @@ export default defineConfig({
       }
     }
   ],
+  resolve: {
+    alias: {
+      buffer: 'buffer/'
+    }
+  },
+  define: {
+    'global': 'globalThis'
+  },
   build: {
     rollupOptions: {
         input: {

@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "axios": "^1.2.2",
+    "buffer": "^6.0.3",
+    "music-metadata-browser": "^2.5.11",
     "vue": "^3.2.41",
     "vue-clipboard2": "^0.3.3",
     "vue-loading-overlay": "6.0",
