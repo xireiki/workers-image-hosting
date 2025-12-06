@@ -558,7 +558,8 @@ export default{
       const updateLyrics = () => {
         if (lyricsData.length === 0) return;
         
-        const currentTime = audio.currentTime;
+        // 添加300ms提前量，考虑动画延迟
+        const currentTime = audio.currentTime + 0.3;
         let currentIndex = -1;
         
         for (let i = 0; i < lyricsData.length; i++) {
@@ -1193,7 +1194,8 @@ export default{
                   </button>
                 </div>
               </div>
-              <div v-else-if="item.metadata.category === 'sound'" class="mdui-card-media media-image" @click="displayAudio('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;">\n                <div v-if="item._coverUrl" class="image-wrapper">
+              <div v-else-if="item.metadata.category === 'sound'" class="mdui-card-media media-image" @click="displayAudio('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;">
+                <div v-if="item._coverUrl" class="image-wrapper">
                   <img :src="item._coverUrl" class="preview-img loaded" />
                   <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
                     <i class="mdui-icon material-icons" style="color:white;font-size:36px;">music_note</i>
