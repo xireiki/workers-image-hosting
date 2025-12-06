@@ -205,7 +205,7 @@ router.post('/api', async ({ req, res }) => {
 
   res.headers = header;
   res.body = {
-    link: req.url + '/file/' + url,
+    link: '/api/file/' + url,
     category: category,
     deleteToken: deleteToken
   };
