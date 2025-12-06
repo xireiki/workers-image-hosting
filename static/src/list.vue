@@ -293,23 +293,38 @@ export default{
       video.preload = 'metadata';
       
       video.addEventListener('loadedmetadata', () => {
-        const aspectRatio = video.videoWidth / video.videoHeight;
-        const isWideVideo = aspectRatio > 1.5; // 宽屏视频
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        const aspectRatio = videoWidth / videoHeight;
+        
+        // 计算视口可用区域（留出边距和标题栏空间）
+        const viewportWidth = window.innerWidth - 40; // 左右20px padding
+        const viewportHeight = window.innerHeight - 120; // 上下60px padding + 标题栏
+        
+        let playerWidth, playerHeight;
+        
+        // 根据视频宽高比和视口大小计算最佳播放器尺寸
+        if (aspectRatio > viewportWidth / viewportHeight) {
+          // 视频更宽，以宽度为基准
+          playerWidth = Math.min(videoWidth, viewportWidth);
+          playerHeight = playerWidth / aspectRatio;
+        } else {
+          // 视频更高或接近方形，以高度为基准
+          playerHeight = Math.min(videoHeight, viewportHeight);
+          playerWidth = playerHeight * aspectRatio;
+        }
         
         const modal = document.createElement('div');
         modal.className = 'media-player-modal';
         modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:20px;';
         
-        const maxWidth = isWideVideo ? '90vw' : '1200px';
-        const maxHeight = isWideVideo ? 'auto' : '70vh';
-        
         modal.innerHTML = `
-          <div style="width:100%;max-width:${maxWidth};display:flex;flex-direction:column;gap:16px;">
+          <div style="display:flex;flex-direction:column;gap:16px;">
             <div style="display:flex;justify-content:space-between;align-items:center;color:white;">
               <h3 style="margin:0;font-size:18px;">${fileName || '视频播放'}</h3>
               <button class="close-btn" style="background:rgba(255,255,255,0.2);border:none;color:white;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:20px;">&times;</button>
             </div>
-            <video controls autoplay style="width:100%;max-height:${maxHeight};background:#000;border-radius:8px;">
+            <video controls autoplay style="width:${playerWidth}px;height:${playerHeight}px;background:#000;border-radius:8px;">
               <source src="${videoUrl}" type="video/mp4">
               您的浏览器不支持视频播放。
             </video>
