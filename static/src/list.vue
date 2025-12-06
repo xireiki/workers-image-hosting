@@ -88,6 +88,8 @@ export default{
         }
       };
       window.addEventListener('scroll', this._scrollHandler, { passive: true });
+      
+      this.autoDetectMediaType();
     },
     beforeUnmount(){
       if (this._docClickHandler) document.removeEventListener('click', this._docClickHandler);
@@ -1089,7 +1091,67 @@ export default{
 
     scrollToTop(){
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    },
+    async autoDetectMediaType() {
+      for (const item of this.list) {
+        if (
+          item.metadata &&
+          item.metadata.category === 'other' &&
+          item.metadata.type === 'application/octet-stream'
+        ) {
+          try {
+            const res = await fetch(`/api/file/${item.name}`, {
+              headers: { Range: 'bytes=0-15' }
+            });
+            const buf = await res.arrayBuffer();
+            const head = new Uint8Array(buf);
+            // MP3: 49 44 33 (ID3), or FF FB/FF F3/FF F2
+            if ((head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33) ||
+                (head[0] === 0xFF && [0xFB,0xF3,0xF2].includes(head[1]))) {
+              this.$set(item.metadata, 'category', 'sound');
+            }
+            // MP4/M4A/MOV: 00 00 00 ?? 66 74 79 70
+            else if (head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70) {
+              this.$set(item.metadata, 'category', 'video');
+            }
+            // WAV: 52 49 46 46 ('RIFF')
+            else if (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46) {
+              this.$set(item.metadata, 'category', 'sound');
+            }
+            // OGG: 4F 67 67 53
+            else if (head[0] === 0x4F && head[1] === 0x67 && head[2] === 0x67 && head[3] === 0x53) {
+              this.$set(item.metadata, 'category', 'sound');
+            }
+            // FLAC: 66 4C 61 43
+            else if (head[0] === 0x66 && head[1] === 0x4C && head[2] === 0x61 && head[3] === 0x43) {
+              this.$set(item.metadata, 'category', 'sound');
+            }
+            // AAC: FF F1/FF F9
+            else if (head[0] === 0xFF && [0xF1,0xF9].includes(head[1])) {
+              this.$set(item.metadata, 'category', 'sound');
+            }
+            // MKV/WEBM: 1A 45 DF A3
+            else if (head[0] === 0x1A && head[1] === 0x45 && head[2] === 0xDF && head[3] === 0xA3) {
+              this.$set(item.metadata, 'category', 'video');
+            }
+            // AVI: 52 49 46 46 + ... + 41 56 49
+            else if (head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 && head[8] === 0x41 && head[9] === 0x56 && head[10] === 0x49) {
+              this.$set(item.metadata, 'category', 'video');
+            }
+            // WMV/ASF: 30 26 B2 75
+            else if (head[0] === 0x30 && head[1] === 0x26 && head[2] === 0xB2 && head[3] === 0x75) {
+              this.$set(item.metadata, 'category', 'video');
+            }
+            // FLV: 46 4C 56
+            else if (head[0] === 0x46 && head[1] === 0x4C && head[2] === 0x56) {
+              this.$set(item.metadata, 'category', 'video');
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+    },
   },
   components:{
     Waterfall,

@@ -157,6 +157,51 @@ router.post('/api', async ({ req, res }) => {
     else if (audioExt.includes(ext)) category = 'sound';
     else if (docExt.includes(ext)) category = 'document';
     else if (imageExt.includes(ext)) category = 'image';
+    else {
+      // 文件头识别音视频
+      const headBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+      // MP3: 49 44 33 (ID3), or FF FB/FF F3/FF F2
+      if ((headBytes[0] === 0x49 && headBytes[1] === 0x44 && headBytes[2] === 0x33) ||
+          (headBytes[0] === 0xFF && [0xFB,0xF3,0xF2].includes(headBytes[1]))) {
+        category = 'sound';
+      }
+      // MP4/M4A/MOV: 00 00 00 ?? 66 74 79 70
+      else if (headBytes[4] === 0x66 && headBytes[5] === 0x74 && headBytes[6] === 0x79 && headBytes[7] === 0x70) {
+        category = videoExt.includes(ext) ? 'video' : 'sound';
+      }
+      // WAV: 52 49 46 46 ('RIFF')
+      else if (headBytes[0] === 0x52 && headBytes[1] === 0x49 && headBytes[2] === 0x46 && headBytes[3] === 0x46) {
+        category = 'sound';
+      }
+      // OGG: 4F 67 67 53
+      else if (headBytes[0] === 0x4F && headBytes[1] === 0x67 && headBytes[2] === 0x67 && headBytes[3] === 0x53) {
+        category = 'sound';
+      }
+      // FLAC: 66 4C 61 43
+      else if (headBytes[0] === 0x66 && headBytes[1] === 0x4C && headBytes[2] === 0x61 && headBytes[3] === 0x43) {
+        category = 'sound';
+      }
+      // AAC: FF F1/FF F9
+      else if (headBytes[0] === 0xFF && [0xF1,0xF9].includes(headBytes[1])) {
+        category = 'sound';
+      }
+      // MKV/WEBM: 1A 45 DF A3
+      else if (headBytes[0] === 0x1A && headBytes[1] === 0x45 && headBytes[2] === 0xDF && headBytes[3] === 0xA3) {
+        category = 'video';
+      }
+      // AVI: 52 49 46 46 + ... + 41 56 49
+      else if (headBytes[0] === 0x52 && headBytes[1] === 0x49 && headBytes[2] === 0x46 && headBytes[3] === 0x46 && headBytes[8] === 0x41 && headBytes[9] === 0x56 && headBytes[10] === 0x49) {
+        category = 'video';
+      }
+      // WMV/ASF: 30 26 B2 75
+      else if (headBytes[0] === 0x30 && headBytes[1] === 0x26 && headBytes[2] === 0xB2 && headBytes[3] === 0x75) {
+        category = 'video';
+      }
+      // FLV: 46 4C 56
+      else if (headBytes[0] === 0x46 && headBytes[1] === 0x4C && headBytes[2] === 0x56) {
+        category = 'video';
+      }
+    }
   } else if (mime.startsWith('image/')) category = 'image';
   else if (mime.startsWith('video/')) category = 'video';
   else if (mime.startsWith('audio/')) category = 'sound';
