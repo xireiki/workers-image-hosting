@@ -252,7 +252,7 @@ router.get('/api/thumb/:p', async ({ req, res }) => {
   res.body = imageResponse.body;
 });
 
-// 获取文件（返回二进制流并在头部包含 category）
+// 获取文件（返回二进制流并在头部包含 category，支持 Range 请求）
 router.get('/api/file/:p', async ({ req, res }) => {
   const { metadata } = await LINK.getWithMetadata(req.params.p, { type: "text" });
   const type = metadata && metadata.type ? metadata.type : 'application/octet-stream';
@@ -288,24 +288,78 @@ router.get('/api/file/:p', async ({ req, res }) => {
       offset += chunk.byteLength;
     }
     
-    res.headers = header;
-    res.headers.set('Cache-Control', 'public, max-age=864000');
-    res.headers.set('Content-Type', type);
-    res.headers.set('X-Category', category);
-    res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
-    if (size !== null) res.etag = size;
-    res.body = mergedBuffer.buffer;
+    // 处理 Range 请求
+    const rangeHeader = req.headers.get('Range');
+    if (rangeHeader && rangeHeader.startsWith('bytes=')) {
+      const ranges = rangeHeader.substring(6).split(',')[0].split('-');
+      const start = parseInt(ranges[0]) || 0;
+      const end = ranges[1] ? parseInt(ranges[1]) : totalSize - 1;
+      const contentLength = end - start + 1;
+      
+      const rangeData = mergedBuffer.buffer.slice(start, end + 1);
+      
+      res.status = 206;
+      res.headers = header;
+      res.headers.set('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+      res.headers.set('Content-Length', contentLength.toString());
+      res.headers.set('Accept-Ranges', 'bytes');
+      res.headers.set('Cache-Control', 'public, max-age=864000');
+      res.headers.set('Content-Type', type);
+      res.headers.set('X-Category', category);
+      res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      if (size !== null) res.etag = size;
+      res.body = rangeData;
+    } else {
+      res.headers = header;
+      res.headers.set('Accept-Ranges', 'bytes');
+      res.headers.set('Content-Length', totalSize.toString());
+      res.headers.set('Cache-Control', 'public, max-age=864000');
+      res.headers.set('Content-Type', type);
+      res.headers.set('X-Category', category);
+      res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      if (size !== null) res.etag = size;
+      res.body = mergedBuffer.buffer;
+    }
   } else {
-    // 非分片文件，直接读取
-    const body = await LINK.get(req.params.p, { cacheTtl: 864000, type: "stream" });
+    // 非分片文件
+    const rangeHeader = req.headers.get('Range');
     
-    res.headers = header;
-    res.headers.set('Cache-Control', 'public, max-age=864000');
-    res.headers.set('Content-Type', type);
-    res.headers.set('X-Category', category);
-    res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
-    if (size !== null) res.etag = size;
-    res.body = body;
+    if (rangeHeader && rangeHeader.startsWith('bytes=') && size) {
+      // 处理 Range 请求
+      const ranges = rangeHeader.substring(6).split(',')[0].split('-');
+      const start = parseInt(ranges[0]) || 0;
+      const end = ranges[1] ? parseInt(ranges[1]) : size - 1;
+      const contentLength = end - start + 1;
+      
+      // 读取整个文件（KV 不支持部分读取）
+      const fullBody = await LINK.get(req.params.p, { cacheTtl: 864000, type: "arrayBuffer" });
+      const rangeData = fullBody.slice(start, end + 1);
+      
+      res.status = 206;
+      res.headers = header;
+      res.headers.set('Content-Range', `bytes ${start}-${end}/${size}`);
+      res.headers.set('Content-Length', contentLength.toString());
+      res.headers.set('Accept-Ranges', 'bytes');
+      res.headers.set('Cache-Control', 'public, max-age=864000');
+      res.headers.set('Content-Type', type);
+      res.headers.set('X-Category', category);
+      res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      if (size !== null) res.etag = size;
+      res.body = rangeData;
+    } else {
+      // 完整文件请求
+      const body = await LINK.get(req.params.p, { cacheTtl: 864000, type: "stream" });
+      
+      res.headers = header;
+      res.headers.set('Accept-Ranges', 'bytes');
+      if (size) res.headers.set('Content-Length', size.toString());
+      res.headers.set('Cache-Control', 'public, max-age=864000');
+      res.headers.set('Content-Type', type);
+      res.headers.set('X-Category', category);
+      res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      if (size !== null) res.etag = size;
+      res.body = body;
+    }
   }
 });
 

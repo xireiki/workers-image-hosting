@@ -478,34 +478,47 @@ export default{
       return iconMap[category] || 'insert_drive_file';
     },
     displayVideo(videoUrl, fileName) {
-      const modal = document.createElement('div');
-      modal.className = 'media-player-modal';
-      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+      // 预加载视频获取尺寸
+      const video = document.createElement('video');
+      video.src = videoUrl;
+      video.preload = 'metadata';
       
-      modal.innerHTML = `
-        <div style="width:100%;max-width:1200px;display:flex;flex-direction:column;gap:16px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;color:white;">
-            <h3 style="margin:0;font-size:18px;">${fileName || '视频播放'}</h3>
-            <button class="close-btn" style="background:rgba(255,255,255,0.2);border:none;color:white;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:20px;">&times;</button>
+      video.addEventListener('loadedmetadata', () => {
+        const aspectRatio = video.videoWidth / video.videoHeight;
+        const isWideVideo = aspectRatio > 1.5; // 宽屏视频
+        
+        const modal = document.createElement('div');
+        modal.className = 'media-player-modal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+        
+        const maxWidth = isWideVideo ? '90vw' : '1200px';
+        const maxHeight = isWideVideo ? 'auto' : '70vh';
+        
+        modal.innerHTML = `
+          <div style="width:100%;max-width:${maxWidth};display:flex;flex-direction:column;gap:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;color:white;">
+              <h3 style="margin:0;font-size:18px;">${fileName || '视频播放'}</h3>
+              <button class="close-btn" style="background:rgba(255,255,255,0.2);border:none;color:white;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:20px;">&times;</button>
+            </div>
+            <video controls autoplay style="width:100%;max-height:${maxHeight};background:#000;border-radius:8px;">
+              <source src="${videoUrl}" type="video/mp4">
+              您的浏览器不支持视频播放。
+            </video>
           </div>
-          <video controls autoplay style="width:100%;max-height:70vh;background:#000;border-radius:8px;">
-            <source src="${videoUrl}" type="video/mp4">
-            您的浏览器不支持视频播放。
-          </video>
-        </div>
-      `;
-      
-      document.body.appendChild(modal);
-      
-      const closeBtn = modal.querySelector('.close-btn');
-      closeBtn.addEventListener('click', () => {
-        document.body.removeChild(modal);
-      });
-      
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
+        `;
+        
+        document.body.appendChild(modal);
+        
+        const closeBtn = modal.querySelector('.close-btn');
+        closeBtn.addEventListener('click', () => {
           document.body.removeChild(modal);
-        }
+        });
+        
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            document.body.removeChild(modal);
+          }
+        });
       });
     },
     async displayAudio(audioUrl, fileName) {
@@ -547,9 +560,9 @@ export default{
               </div>
             </div>
             
-            <div class="lyrics-container" style="background:rgba(255,255,255,0.1);border-radius:12px;padding:20px;max-height:300px;overflow-y:auto;color:white;">
+            <div class="lyrics-container" style="background:rgba(255,255,255,0.1);border-radius:12px;padding:20px;max-height:300px;overflow-y:auto;color:white;position:relative;z-index:1;">
               <div class="lyrics-title" style="font-size:14px;font-weight:600;margin-bottom:12px;opacity:0.9;">歌词</div>
-              <div class="lyrics-content" style="font-size:14px;line-height:2;opacity:0.8;text-align:center;">
+              <div class="lyrics-content" style="font-size:14px;line-height:2;opacity:0.8;text-align:center;position:relative;">
                 <p style="margin:0;opacity:0.5;">暂无歌词</p>
               </div>
             </div>
@@ -565,6 +578,20 @@ export default{
       const artistEl = modal.querySelector('.song-artist');
       const albumEl = modal.querySelector('.song-album');
       const lyricsEl = modal.querySelector('.lyrics-content');
+      
+      // 歌词点击跳转
+      lyricsEl.addEventListener('click', (e) => {
+        const lyricGroup = e.target.closest('.lyric-group');
+        
+        if (lyricGroup) {
+          const time = parseFloat(lyricGroup.getAttribute('data-time'));
+          
+          if (!isNaN(time) && audio && time >= 0 && time <= audio.duration) {
+            audio.currentTime = time;
+            resetInteractionTimer();
+          }
+        }
+      });
       
       let lyricsData = [];
       
@@ -609,6 +636,10 @@ export default{
           .sort((a, b) => a.time - b.time);
       };
       
+      // 用户交互状态管理
+      let userInteracting = false;
+      let interactionTimer = null;
+      
       // 更新当前歌词高亮
       const updateLyrics = () => {
         if (lyricsData.length === 0) return;
@@ -638,8 +669,10 @@ export default{
               transLine.style.fontWeight = '600';
               transLine.style.transform = 'scale(1.05)';
             }
-            // 滚动到当前歌词
-            group.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // 只在非用户交互状态下自动滚动
+            if (!userInteracting) {
+              group.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
           } else {
             mainLine.style.opacity = '0.5';
             mainLine.style.fontWeight = 'normal';
@@ -651,6 +684,17 @@ export default{
             }
           }
         });
+      };
+      
+      // 重置交互状态的函数
+      const resetInteractionTimer = () => {
+        userInteracting = true;
+        if (interactionTimer) {
+          clearTimeout(interactionTimer);
+        }
+        interactionTimer = setTimeout(() => {
+          userInteracting = false;
+        }, 3000);
       };
       
       // 解析音频元数据
@@ -685,25 +729,40 @@ export default{
                 // 判断是否为 LRC 格式
                 if (lyricsText.includes('[') && /\[\d{2}:\d{2}/.test(lyricsText)) {
                   lyricsData = parseLRC(lyricsText);
+                  
                   lyricsEl.innerHTML = lyricsData.map((line, index) => {
-                    let html = `<div class="lyric-group" style="margin:12px 0;cursor:pointer;" onclick="document.querySelector('.audio-player').currentTime=${line.time}">`;
+                    let html = `<div class="lyric-group" data-index="${index}" data-time="${line.time}" style="margin:12px 0;cursor:pointer;user-select:none;">`;
                     
                     // 主歌词
-                    html += `<p class="lyric-main" data-time="${line.time}" style="margin:0;opacity:0.6;transition:all 0.3s;font-size:16px;line-height:1.4;">${line.text || '&nbsp;'}</p>`;
+                    html += `<p class="lyric-main" style="margin:0;opacity:0.6;transition:all 0.3s;font-size:16px;line-height:1.4;pointer-events:none;">${line.text || '&nbsp;'}</p>`;
                     
                     // 注音（如果有）
                     if (line.phonetic) {
-                      html += `<p class="lyric-phonetic" style="margin:1px 0 0 0;opacity:0.4;transition:all 0.3s;font-size:12px;color:#ddd;line-height:1.3;">${line.phonetic}</p>`;
+                      html += `<p class="lyric-phonetic" style="margin:1px 0 0 0;opacity:0.4;transition:all 0.3s;font-size:12px;color:#ddd;line-height:1.3;pointer-events:none;">${line.phonetic}</p>`;
                     }
                     
                     // 翻译（如果有）
                     if (line.translation) {
-                      html += `<p class="lyric-trans" style="margin:1px 0 0 0;opacity:0.5;transition:all 0.3s;font-size:13px;color:#e0e0e0;line-height:1.4;">${line.translation}</p>`;
+                      html += `<p class="lyric-trans" style="margin:1px 0 0 0;opacity:0.5;transition:all 0.3s;font-size:13px;color:#e0e0e0;line-height:1.4;pointer-events:none;">${line.translation}</p>`;
                     }
                     
                     html += `</div>`;
                     return html;
                   }).join('');
+                  
+                  console.log('Lyrics HTML generated, groups count:', lyricsEl.querySelectorAll('.lyric-group').length);
+                  
+                  // 监听歌词容器的滚动事件
+                  lyricsEl.addEventListener('wheel', resetInteractionTimer);
+                  lyricsEl.addEventListener('touchmove', resetInteractionTimer);
+                  lyricsEl.addEventListener('scroll', resetInteractionTimer);
+                  
+                  // 监听歌词容器的失焦事件
+                  lyricsEl.addEventListener('mouseleave', resetInteractionTimer);
+                  
+                  // 监听用户手动调节播放进度
+                  audio.addEventListener('seeking', resetInteractionTimer);
+                  audio.addEventListener('seeked', resetInteractionTimer);
                   
                   // 监听播放进度
                   audio.addEventListener('timeupdate', updateLyrics);
