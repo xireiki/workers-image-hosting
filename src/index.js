@@ -105,7 +105,11 @@ header.set('access-control-allow-origin', '*')
 // 上传api（支持多种文件类型，并分类为 image/document/video/sound）
 router.post('/api', async ({ req, res }) => {
   const form = req.body.formData();
-  const file = (await form).get('img');
+  // 支持 file 或 img 字段名，优先使用 file
+  let file = (await form).get('file');
+  if (!file) {
+    file = (await form).get('img');
+  }
   const providedPass = (await form).get('pass'); // 获取密码
 
   if (!file || !file.name) {
@@ -138,20 +142,27 @@ router.post('/api', async ({ req, res }) => {
 
   const mime = (file.type || '').toLowerCase();
   let category = 'other';
+  
+  // 提取文件扩展名
+  const extMatch = file.name.match(/\.([^.]+)$/);
+  const ext = extMatch ? extMatch[1].toLowerCase() : '';
+  const docExt = ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','csv','rtf','odt'];
+  const videoExt = ['mp4','mkv','webm','mov','avi','flv','wmv'];
+  const audioExt = ['mp3','wav','ogg','m4a','flac','aac'];
+  const imageExt = ['png','jpg','jpeg','gif','bmp','webp','svg','tiff'];
 
-  if (mime.startsWith('image/')) category = 'image';
+  // 如果是 application/octet-stream，优先使用扩展名判断
+  if (mime === 'application/octet-stream' || !mime) {
+    if (videoExt.includes(ext)) category = 'video';
+    else if (audioExt.includes(ext)) category = 'sound';
+    else if (docExt.includes(ext)) category = 'document';
+    else if (imageExt.includes(ext)) category = 'image';
+  } else if (mime.startsWith('image/')) category = 'image';
   else if (mime.startsWith('video/')) category = 'video';
   else if (mime.startsWith('audio/')) category = 'sound';
   else if (mime.startsWith('application/') || mime.startsWith('text/')) category = 'document';
   else {
     // fallback to extension-based classification
-    const extMatch = file.name.match(/\.([^.]+)$/);
-    const ext = extMatch ? extMatch[1].toLowerCase() : '';
-    const docExt = ['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','md','csv','rtf','odt'];
-    const videoExt = ['mp4','mkv','webm','mov','avi','flv','wmv'];
-    const audioExt = ['mp3','wav','ogg','m4a','flac','aac'];
-    const imageExt = ['png','jpg','jpeg','gif','bmp','webp','svg','tiff'];
-
     if (videoExt.includes(ext)) category = 'video';
     else if (audioExt.includes(ext)) category = 'sound';
     else if (docExt.includes(ext)) category = 'document';

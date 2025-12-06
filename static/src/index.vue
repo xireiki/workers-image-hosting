@@ -306,7 +306,7 @@ export default{
        ////////
       async function up(file) {
           let f=new FormData()
-          f.append('img',file)
+          f.append('file',file)
           const pass = sessionStorage.getItem('pass');
           if (pass) {
             f.append('pass', pass);
@@ -392,7 +392,7 @@ export default{
       ////////
       async function up(file) {
           let f=new FormData();
-          f.append('img',file);
+          f.append('file',file);
           const pass = sessionStorage.getItem('pass');
           if (pass) {
             f.append('pass', pass);
