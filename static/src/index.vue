@@ -1093,13 +1093,15 @@ export default{
                   </button>
                 </div>
               </div>
-              <div v-else-if="item.category === 'video'" class="mdui-card-media media-icon" @click="displayVideo(item.link, item.name || 'video')" style="cursor:pointer;position:relative;">
-                <img v-if="item.coverUrl" :src="item.coverUrl" style="width:100%;height:100%;object-fit:cover;" />
+              <div v-else-if="item.category === 'video'" class="mdui-card-media media-image" @click="displayVideo(item.link, item.name || 'video')" style="cursor:pointer;">
+                <div v-if="item.coverUrl" class="image-wrapper">
+                  <img :src="item.coverUrl" class="preview-img loaded" />
+                  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
+                    <i class="mdui-icon material-icons" style="color:white;font-size:36px;">play_arrow</i>
+                  </div>
+                </div>
                 <div v-else class="file-icon-container">
                   <i class="mdui-icon material-icons">{{ getFileIcon(item.category) }}</i>
-                </div>
-                <div v-if="item.coverUrl" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
-                  <i class="mdui-icon material-icons" style="color:white;font-size:36px;">play_arrow</i>
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
@@ -1113,13 +1115,15 @@ export default{
                   </button>
                 </div>
               </div>
-              <div v-else-if="item.category === 'sound'" class="mdui-card-media media-icon" @click="displayAudio(item.link, item.name || 'audio')" style="cursor:pointer;position:relative;">
-                <img v-if="item.coverUrl" :src="item.coverUrl" style="width:100%;height:100%;object-fit:cover;" />
+              <div v-else-if="item.category === 'sound'" class="mdui-card-media media-image" @click="displayAudio(item.link, item.name || 'audio')" style="cursor:pointer;">
+                <div v-if="item.coverUrl" class="image-wrapper">
+                  <img :src="item.coverUrl" class="preview-img loaded" />
+                  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
+                    <i class="mdui-icon material-icons" style="color:white;font-size:36px;">music_note</i>
+                  </div>
+                </div>
                 <div v-else class="file-icon-container">
                   <i class="mdui-icon material-icons">{{ getFileIcon(item.category) }}</i>
-                </div>
-                <div v-if="item.coverUrl" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
-                  <i class="mdui-icon material-icons" style="color:white;font-size:36px;">music_note</i>
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
