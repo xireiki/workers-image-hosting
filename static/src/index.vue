@@ -116,6 +116,72 @@ export default{
       if (this.layoutTimer) clearTimeout(this.layoutTimer);
     },
     methods:{
+      async extractMediaCover(fileUrl) {
+        try {
+          const response = await fetch(fileUrl, {
+            headers: { 'Range': 'bytes=0-2097151' }
+          });
+          
+          if (!response.ok && response.status !== 206) {
+            return null;
+          }
+          
+          const blob = await response.blob();
+          
+          try {
+            const metadata = await mm.parseBlob(blob, { skipCovers: false });
+            
+            if (metadata.common?.picture && metadata.common.picture.length > 0) {
+              const picture = metadata.common.picture[0];
+              const coverBlob = new Blob([picture.data], { type: picture.format });
+              return URL.createObjectURL(coverBlob);
+            }
+          } catch (metadataError) {
+            console.log('Metadata parsing failed');
+          }
+          
+          return null;
+        } catch (error) {
+          console.warn('Failed to extract cover:', error);
+          return null;
+        }
+      },
+      
+      async extractVideoFrame(fileUrl) {
+        return new Promise((resolve) => {
+          const video = document.createElement('video');
+          video.crossOrigin = 'anonymous';
+          video.preload = 'metadata';
+          
+          video.addEventListener('loadeddata', () => {
+            video.currentTime = 1;
+          });
+          
+          video.addEventListener('seeked', () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(URL.createObjectURL(blob));
+              } else {
+                resolve(null);
+              }
+              video.src = '';
+            }, 'image/jpeg', 0.8);
+          });
+          
+          video.addEventListener('error', () => {
+            resolve(null);
+          });
+          
+          video.src = fileUrl;
+        });
+      },
     loadMoreItems(){
       if (this.isLoadingMore) return;
       if (this.file_info.length >= this.file_info_all.length) return;
@@ -260,8 +326,9 @@ export default{
           that.status = true;
         }
 
-        Promise.all(uplist).then(results => {
-          results.forEach((r, idx) => {
+        Promise.all(uplist).then(async results => {
+          for (let idx = 0; idx < results.length; idx++) {
+            const r = results[idx];
             if (r && r.data) {
                 const fileObj = file_id.files[idx];
                 if (fileObj && r.data.category === 'image') {
@@ -286,14 +353,28 @@ export default{
                     category: r.data.category || 'other',
                     name: fileObj ? fileObj.name : 'file',
                     deleteToken: r.data.deleteToken,
-                    _imageLoading: false,  // 非图片不需要加载
+                    _imageLoading: false,
                     actionsActive: false
                   };
+                  
+                  // 为音视频提取封面
+                  if (r.data.category === 'video') {
+                    const coverUrl = await that.extractVideoFrame(r.data.link);
+                    if (coverUrl) {
+                      newItem.coverUrl = coverUrl;
+                    }
+                  } else if (r.data.category === 'sound') {
+                    const coverUrl = await that.extractMediaCover(r.data.link);
+                    if (coverUrl) {
+                      newItem.coverUrl = coverUrl;
+                    }
+                  }
+                  
                   that.file_info_all.unshift(newItem);
                   that.file_info.unshift(newItem);
                 }
             }
-          });
+          }
             that.status = false;
             // 上传完成后关闭首次加载遮罩
             that.isFirstLoad = false;
@@ -330,8 +411,9 @@ export default{
          that.status=true;
         uplist.push(up(f));
         }
-        Promise.all(uplist).then(results=>{
-          results.forEach((r, idx)=>{
+        Promise.all(uplist).then(async results=>{
+          for (let idx = 0; idx < results.length; idx++) {
+            const r = results[idx];
             if (r && r.data) {
               const fileObj = fileList[idx];
               if (fileObj && r.data.category === 'image') {
@@ -357,13 +439,27 @@ export default{
                   name: fileObj ? fileObj.name : 'file',
                   actionsActive: false,
                   deleteToken: r.data.deleteToken,
-                  _imageLoading: false  // 非图片不需要加载
+                  _imageLoading: false
                 };
+                
+                // 为音视频提取封面
+                if (r.data.category === 'video') {
+                  const coverUrl = await that.extractVideoFrame(r.data.link);
+                  if (coverUrl) {
+                    newItem.coverUrl = coverUrl;
+                  }
+                } else if (r.data.category === 'sound') {
+                  const coverUrl = await that.extractMediaCover(r.data.link);
+                  if (coverUrl) {
+                    newItem.coverUrl = coverUrl;
+                  }
+                }
+                
                 that.file_info_all.unshift(newItem);
                 that.file_info.unshift(newItem);
               }
             }
-          });
+          }
             that.status = false;
             // 上传完成后关闭首次加载遮罩
             that.isFirstLoad = false;
@@ -997,9 +1093,13 @@ export default{
                   </button>
                 </div>
               </div>
-              <div v-else-if="item.category === 'video'" class="mdui-card-media media-icon" @click="displayVideo(item.link, item.name || 'video')" style="cursor:pointer;">
-                <div class="file-icon-container">
+              <div v-else-if="item.category === 'video'" class="mdui-card-media media-icon" @click="displayVideo(item.link, item.name || 'video')" style="cursor:pointer;position:relative;">
+                <img v-if="item.coverUrl" :src="item.coverUrl" style="width:100%;height:100%;object-fit:cover;" />
+                <div v-else class="file-icon-container">
                   <i class="mdui-icon material-icons">{{ getFileIcon(item.category) }}</i>
+                </div>
+                <div v-if="item.coverUrl" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
+                  <i class="mdui-icon material-icons" style="color:white;font-size:36px;">play_arrow</i>
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
@@ -1013,9 +1113,13 @@ export default{
                   </button>
                 </div>
               </div>
-              <div v-else-if="item.category === 'sound'" class="mdui-card-media media-icon" @click="displayAudio(item.link, item.name || 'audio')" style="cursor:pointer;">
-                <div class="file-icon-container">
+              <div v-else-if="item.category === 'sound'" class="mdui-card-media media-icon" @click="displayAudio(item.link, item.name || 'audio')" style="cursor:pointer;position:relative;">
+                <img v-if="item.coverUrl" :src="item.coverUrl" style="width:100%;height:100%;object-fit:cover;" />
+                <div v-else class="file-icon-container">
                   <i class="mdui-icon material-icons">{{ getFileIcon(item.category) }}</i>
+                </div>
+                <div v-if="item.coverUrl" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
+                  <i class="mdui-icon material-icons" style="color:white;font-size:36px;">music_note</i>
                 </div>
                 <div class="overlay-actions" :class="{active: item.actionsActive}" @click.stop="toggleActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">

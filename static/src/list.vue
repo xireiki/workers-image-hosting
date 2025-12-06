@@ -110,6 +110,24 @@ export default{
         // 追加新项
         this.list.push(...newItems);
         
+        // 为音频和视频异步提取封面
+        newItems.forEach(async (item, idx) => {
+          const actualIndex = startIdx + idx;
+          if (item.metadata.category === 'video') {
+            // 视频：提取第一帧
+            const coverUrl = await this.extractVideoFrame(`/api/file/${item.name}`);
+            if (coverUrl) {
+              this.list[actualIndex]._coverUrl = coverUrl;
+            }
+          } else if (item.metadata.category === 'sound') {
+            // 音频：提取专辑封面
+            const coverUrl = await this.extractMediaCover(`/api/file/${item.name}`);
+            if (coverUrl) {
+              this.list[actualIndex]._coverUrl = coverUrl;
+            }
+          }
+        });
+        
         this.$nextTick(() => {
           this.isLoadingMore = false;
           
@@ -274,6 +292,79 @@ export default{
     },
     getThumbnailUrl(fileName, category = 'image') {
       return getThumbnailUrl(fileName, true, category);
+    },
+    
+    async extractMediaCover(fileUrl) {
+      try {
+        // 使用 Range 请求获取文件前 2MB 的数据
+        const response = await fetch(fileUrl, {
+          headers: {
+            'Range': 'bytes=0-2097151' // 0-2MB
+          }
+        });
+        
+        if (!response.ok && response.status !== 206) {
+          return null;
+        }
+        
+        const blob = await response.blob();
+        
+        // 尝试解析元数据获取封面
+        try {
+          const metadata = await mm.parseBlob(blob, { skipCovers: false });
+          
+          // 提取封面图片
+          if (metadata.common?.picture && metadata.common.picture.length > 0) {
+            const picture = metadata.common.picture[0];
+            const coverBlob = new Blob([picture.data], { type: picture.format });
+            return URL.createObjectURL(coverBlob);
+          }
+        } catch (metadataError) {
+          // 元数据解析失败，对于视频文件尝试提取第一帧
+          console.log('Metadata parsing failed, trying video frame extraction');
+        }
+        
+        return null;
+      } catch (error) {
+        console.warn('Failed to extract cover:', error);
+        return null;
+      }
+    },
+    
+    async extractVideoFrame(fileUrl) {
+      return new Promise((resolve) => {
+        const video = document.createElement('video');
+        video.crossOrigin = 'anonymous';
+        video.preload = 'metadata';
+        
+        video.addEventListener('loadeddata', () => {
+          video.currentTime = 1; // 跳到第1秒
+        });
+        
+        video.addEventListener('seeked', () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(URL.createObjectURL(blob));
+            } else {
+              resolve(null);
+            }
+            video.src = '';
+          }, 'image/jpeg', 0.8);
+        });
+        
+        video.addEventListener('error', () => {
+          resolve(null);
+        });
+        
+        video.src = fileUrl;
+      });
     },
     getFileIcon(category) {
         const iconMap = {
@@ -1080,9 +1171,13 @@ export default{
                   </button>
                 </div>
               </div>
-              <div v-else-if="item.metadata.category === 'video'" class="mdui-card-media media-icon" @click="displayVideo('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;">
-                <div class="file-icon-container">
+              <div v-else-if="item.metadata.category === 'video'" class="mdui-card-media media-icon media-video" @click="displayVideo('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;position:relative;">
+                <img v-if="item._coverUrl" :src="item._coverUrl" style="width:100%;height:100%;object-fit:cover;" />
+                <div v-else class="file-icon-container">
                   <i class="mdui-icon material-icons">{{ getFileIcon(item.metadata.category) }}</i>
+                </div>
+                <div v-if="item._coverUrl" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
+                  <i class="mdui-icon material-icons" style="color:white;font-size:36px;">play_arrow</i>
                 </div>
                 <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
@@ -1096,9 +1191,13 @@ export default{
                   </button>
                 </div>
               </div>
-              <div v-else-if="item.metadata.category === 'sound'" class="mdui-card-media media-icon" @click="displayAudio('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;">
-                <div class="file-icon-container">
+              <div v-else-if="item.metadata.category === 'sound'" class="mdui-card-media media-icon media-audio" @click="displayAudio('/api/file/'+item.name, item.metadata.originalName || item.name)" style="cursor:pointer;position:relative;">
+                <img v-if="item._coverUrl" :src="item._coverUrl" style="width:100%;height:100%;object-fit:cover;" />
+                <div v-else class="file-icon-container">
                   <i class="mdui-icon material-icons">{{ getFileIcon(item.metadata.category) }}</i>
+                </div>
+                <div v-if="item._coverUrl" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.5);border-radius:50%;width:60px;height:60px;display:flex;align-items:center;justify-content:center;">
+                  <i class="mdui-icon material-icons" style="color:white;font-size:36px;">music_note</i>
                 </div>
                 <div class="overlay-actions" :class="{active: item._actionsActive}" @click.stop="toggleListActions(index)">
                   <button class="overlay-btn" @click.stop="activateThenCopy(index)">
