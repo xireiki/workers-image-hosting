@@ -9,7 +9,7 @@ import 'vue-waterfall-plugin-next/style.css'
 import './common.css'
 import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.js'
 import axios from 'axios'
-import { getThumbnailUrl } from './utils.js'
+import { getThumbnailUrl, hashPassword } from './utils.js'
 import { imageLoadManager } from './sw-register.js'
 import * as mm from 'music-metadata-browser';
 
@@ -241,6 +241,10 @@ export default{
       async function up(file) {
           let f=new FormData()
           f.append('img',file)
+          const pass = sessionStorage.getItem('pass');
+          if (pass) {
+            f.append('pass', pass);
+          }
           let UploadObj={
         method:'post',
         url:'/api',
@@ -252,10 +256,6 @@ export default{
 
         for (let i = 0; i < file_id.files.length; i++) {
           const f = file_id.files[i];
-          if (f.size > 100 * 1024 * 1024) { // 最大 100MB 前端限制
-            mdui.snackbar(`文件 "${f.name}" 过大，单文件限制 100MB`);
-            continue;
-          }
           uplist.push(up(f));
           that.status = true;
         }
@@ -312,6 +312,10 @@ export default{
       async function up(file) {
           let f=new FormData();
           f.append('img',file);
+          const pass = sessionStorage.getItem('pass');
+          if (pass) {
+            f.append('pass', pass);
+          }
           let UploadObj={
         method:'post',
         url:'/api',
@@ -323,10 +327,6 @@ export default{
 
         for (let i = 0; i < fileList.length; i++) {
           const f = fileList[i];
-          if (f.size > 100 * 1024 * 1024) {
-            mdui.snackbar(`文件 "${f.name}" 过大，单文件限制 100MB`);
-            continue;
-          }
          that.status=true;
         uplist.push(up(f));
         }

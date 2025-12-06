@@ -19,7 +19,6 @@ export default{
         auth:true,
         pass:'',
         loading:false,
-        cacheExpiry: 30 * 60 * 1000,
         breakpoints: {},
         resizeTimer: null,
         showScrollTop: false,
@@ -36,11 +35,10 @@ export default{
       // 初始化自适应布局
       this.calculateBreakpoints();
       
-      const cachedPass = localStorage.getItem('list_pass');
-      const passExpiry = localStorage.getItem('list_pass_expiry');
+      const cachedPass = sessionStorage.getItem('pass');
       const cachedList = localStorage.getItem('list_data');
       
-      if (cachedPass && passExpiry && parseInt(passExpiry) > Date.now()) {
+      if (cachedPass) {
         this.pass = cachedPass;
         this.auth = false;
         if (cachedList) {
@@ -221,6 +219,7 @@ export default{
       },
       async query(){
         this.loading = true;
+        // 对用户输入的密码进行哈希
         const hashedPass = await this.hashPassword(this.pass);
         fetch(`/query?pass=${hashedPass}`,{
             method:'GET'
@@ -243,8 +242,8 @@ export default{
             this.list_all.sort((a,b)=>{
               return b.metadata.date-a.metadata.date
             })
-            localStorage.setItem('list_pass', this.pass);
-            localStorage.setItem('list_pass_expiry', (Date.now() + this.cacheExpiry).toString());
+            // 登录成功后，存储哈希密码
+            sessionStorage.setItem('pass', hashedPass);
             localStorage.setItem('list_data', JSON.stringify(this.list_all));
             this.auth=false
             this.loading = false;
@@ -863,8 +862,7 @@ export default{
         // 获取密码
         try {
           const pass = await this.getPassCache();
-          const hashedPass = await this.hashPassword(pass);
-          const deleteUrl = `/api/file/${item.name}?pass=${encodeURIComponent(hashedPass)}`;
+          const deleteUrl = `/api/file/${item.name}?pass=${encodeURIComponent(pass)}`;
           
           const response = await fetch(deleteUrl, { method: 'DELETE' });
           if (!response.ok) {
@@ -944,8 +942,7 @@ export default{
       // 获取或提示密码（使用缓存）
       this.getPassCache()
         .then(async pass => {
-          const hashedPass = await this.hashPassword(pass);
-          const deleteUrl = `/api/file/${kvKey}?pass=${encodeURIComponent(hashedPass)}`;
+          const deleteUrl = `/api/file/${kvKey}?pass=${encodeURIComponent(pass)}`;
           const response = await fetch(deleteUrl, { method: 'DELETE' });
           
           if (!response.ok) {
@@ -979,20 +976,17 @@ export default{
     },
 
     getPassCache(){
-      return new Promise((resolve, reject) => {
-        const cached = localStorage.getItem('list_pass');
-        const expiry = localStorage.getItem('list_pass_expiry');
-        if (cached && expiry && parseInt(expiry) > Date.now()) {
-          this.pass = cached;
+      return new Promise(async (resolve, reject) => {
+        const cached = sessionStorage.getItem('pass');
+        if (cached) {
           resolve(cached);
           return;
         }
-        mdui.prompt('请输入删除密码', '密码校验', value =>{
+        mdui.prompt('请输入删除密码', '密码校验', async value =>{
           if (!value) { mdui.alert('需要密码'); reject(new Error('no-pass')); return; }
-          this.pass = value;
-          localStorage.setItem('list_pass', value);
-          localStorage.setItem('list_pass_expiry', (Date.now() + 30*60*1000).toString());
-          resolve(value);
+          const hashedPass = await this.hashPassword(value);
+          sessionStorage.setItem('pass', hashedPass);
+          resolve(hashedPass);
         });
       });
     },

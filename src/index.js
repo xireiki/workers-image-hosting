@@ -106,12 +106,34 @@ header.set('access-control-allow-origin', '*')
 router.post('/api', async ({ req, res }) => {
   const form = req.body.formData();
   const file = (await form).get('img');
+  const providedPass = (await form).get('pass'); // 获取密码
 
   if (!file || !file.name) {
     res.status = 400;
     res.headers = header;
     res.body = { info: '未提供文件' };
     return;
+  }
+
+  const fileSize = file.size;
+  const SIZE_LIMIT = 100 * 1024 * 1024; // 100MB
+
+  // 只对超过 100MB 的文件验证密码
+  if (fileSize > SIZE_LIMIT && PASS) {
+    if (!providedPass) {
+      res.status = 401;
+      res.headers = header;
+      res.body = { info: '文件超过 100MB，需要提供密码' };
+      return;
+    }
+    
+    const hashedPass = await hashPassword(PASS);
+    if (providedPass !== hashedPass) {
+      res.status = 403;
+      res.headers = header;
+      res.body = { info: '密码错误' };
+      return;
+    }
   }
 
   const mime = (file.type || '').toLowerCase();
@@ -145,7 +167,6 @@ router.post('/api', async ({ req, res }) => {
   // 生成删除 token
   const deleteToken = await generateDeleteToken();
 
-  const fileSize = file.size;
   const CHUNK_SIZE = 25 * 1024 * 1024; // 25MB 分片大小
   
   // 如果文件大于 25MB，进行分片存储
