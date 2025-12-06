@@ -327,7 +327,7 @@ router.get('/api/file/:p', async ({ req, res }) => {
       res.headers.set('Cache-Control', 'public, max-age=864000');
       res.headers.set('Content-Type', type);
       res.headers.set('X-Category', category);
-      res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      res.headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(originalName)}`);
       if (size !== null) res.etag = size;
       res.body = rangeData;
     } else {
@@ -337,7 +337,7 @@ router.get('/api/file/:p', async ({ req, res }) => {
       res.headers.set('Cache-Control', 'public, max-age=864000');
       res.headers.set('Content-Type', type);
       res.headers.set('X-Category', category);
-      res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      res.headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(originalName)}`);
       if (size !== null) res.etag = size;
       res.body = mergedBuffer.buffer;
     }
@@ -364,7 +364,7 @@ router.get('/api/file/:p', async ({ req, res }) => {
       res.headers.set('Cache-Control', 'public, max-age=864000');
       res.headers.set('Content-Type', type);
       res.headers.set('X-Category', category);
-      res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      res.headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(originalName)}`);
       if (size !== null) res.etag = size;
       res.body = rangeData;
     } else {
@@ -377,7 +377,7 @@ router.get('/api/file/:p', async ({ req, res }) => {
       res.headers.set('Cache-Control', 'public, max-age=864000');
       res.headers.set('Content-Type', type);
       res.headers.set('X-Category', category);
-      res.headers.set('Content-Disposition', `inline; filename="${encodeURIComponent(originalName)}"`);
+      res.headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(originalName)}`);
       if (size !== null) res.etag = size;
       res.body = body;
     }
