@@ -225,32 +225,44 @@ router.post('/api', async ({ req, res }) => {
 
   const CHUNK_SIZE = 25 * 1024 * 1024; // 25MB 分片大小
   
-  // 如果文件大于 25MB，进行分片存储
+  // 如果文件大于 25MB，进行分片流式存储
   if (fileSize > CHUNK_SIZE) {
-    const arrayBuffer = await file.arrayBuffer();
     const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
     const sliceKeys = [];
-    
-    // 存储每个分片
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * CHUNK_SIZE;
-      const end = Math.min(start + CHUNK_SIZE, fileSize);
-      const chunk = arrayBuffer.slice(start, end);
-      
+    let offset = 0;
+    const reader = file.stream().getReader();
+    let chunkIndex = 0;
+    let buffer = new Uint8Array(0);
+    while (offset < fileSize) {
+      // 逐步读取流数据
+      let chunkBuffer = new Uint8Array(CHUNK_SIZE);
+      let chunkOffset = 0;
+      while (chunkOffset < CHUNK_SIZE && offset < fileSize) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        let copyLength = Math.min(value.length, CHUNK_SIZE - chunkOffset);
+        chunkBuffer.set(value.subarray(0, copyLength), chunkOffset);
+        chunkOffset += copyLength;
+        offset += copyLength;
+        // 若 value 比 chunkBuffer 大，需分多次写入
+        if (copyLength < value.length) {
+          buffer = value.subarray(copyLength);
+          break;
+        }
+      }
       // 生成分片的 key
-      const sliceKey = `${url}_slice_${i}`;
+      const sliceKey = `${url}_slice_${chunkIndex}`;
       sliceKeys.push(sliceKey);
-      
       // 存储分片，标记为 isSlice
-      await LINK.put(sliceKey, chunk, {
+      await LINK.put(sliceKey, chunkBuffer.subarray(0, chunkOffset), {
         metadata: {
           isSlice: true,
           parentKey: url,
-          sliceIndex: i
+          sliceIndex: chunkIndex
         }
       });
+      chunkIndex++;
     }
-    
     // 存储主文件的元数据（不存储实际内容）
     await LINK.put(url, '', {
       metadata: {
@@ -344,59 +356,29 @@ router.get('/api/file/:p', async ({ req, res }) => {
 
   // 检查是否是分片文件
   if (metadata && metadata.sliceList) {
-    // 读取并拼接所有分片
+    // 流式拼接所有分片
     const sliceKeys = JSON.parse(metadata.sliceList);
-    const chunks = [];
-    
-    for (const sliceKey of sliceKeys) {
-      const chunk = await LINK.get(sliceKey, { cacheTtl: 864000, type: "arrayBuffer" });
-      if (chunk) {
-        chunks.push(chunk);
+    const totalSize = metadata.size || 0;
+    const stream = new ReadableStream({
+      async pull(controller) {
+        for (const sliceKey of sliceKeys) {
+          const chunk = await LINK.get(sliceKey, { cacheTtl: 864000, type: "arrayBuffer" });
+          if (chunk) {
+            controller.enqueue(new Uint8Array(chunk));
+          }
+        }
+        controller.close();
       }
-    }
-    
-    // 拼接所有分片
-    const totalSize = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-    const mergedBuffer = new Uint8Array(totalSize);
-    let offset = 0;
-    
-    for (const chunk of chunks) {
-      mergedBuffer.set(new Uint8Array(chunk), offset);
-      offset += chunk.byteLength;
-    }
-    
-    // 处理 Range 请求
-    const rangeHeader = req.headers.get('Range');
-    if (rangeHeader && rangeHeader.startsWith('bytes=')) {
-      const ranges = rangeHeader.substring(6).split(',')[0].split('-');
-      const start = parseInt(ranges[0]) || 0;
-      const end = ranges[1] ? parseInt(ranges[1]) : totalSize - 1;
-      const contentLength = end - start + 1;
-      
-      const rangeData = mergedBuffer.buffer.slice(start, end + 1);
-      
-      res.status = 206;
-      res.headers = header;
-      res.headers.set('Content-Range', `bytes ${start}-${end}/${totalSize}`);
-      res.headers.set('Content-Length', contentLength.toString());
-      res.headers.set('Accept-Ranges', 'bytes');
-      res.headers.set('Cache-Control', 'public, max-age=864000');
-      res.headers.set('Content-Type', type);
-      res.headers.set('X-Category', category);
-      res.headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(originalName)}`);
-      if (size !== null) res.etag = size;
-      res.body = rangeData;
-    } else {
-      res.headers = header;
-      res.headers.set('Accept-Ranges', 'bytes');
-      res.headers.set('Content-Length', totalSize.toString());
-      res.headers.set('Cache-Control', 'public, max-age=864000');
-      res.headers.set('Content-Type', type);
-      res.headers.set('X-Category', category);
-      res.headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(originalName)}`);
-      if (size !== null) res.etag = size;
-      res.body = mergedBuffer.buffer;
-    }
+    });
+    res.headers = header;
+    res.headers.set('Accept-Ranges', 'bytes');
+    if (totalSize) res.headers.set('Content-Length', totalSize.toString());
+    res.headers.set('Cache-Control', 'public, max-age=864000');
+    res.headers.set('Content-Type', type);
+    res.headers.set('X-Category', category);
+    res.headers.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(originalName)}`);
+    if (size !== null) res.etag = size;
+    res.body = stream;
   } else {
     // 非分片文件
     const rangeHeader = req.headers.get('Range');

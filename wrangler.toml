@@ -1,6 +1,7 @@
+
 name = "img-hosting"
 main = "./src/index.js"
-compatibility_date = "2022-11-08"
+compatibility_date = "2025-12-01"
 
 kv_namespaces = [
   { binding = "LINK", id = "9dcf50ad4e3647b38cc245ac977b2cb7" }
