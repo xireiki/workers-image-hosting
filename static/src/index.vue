@@ -27,7 +27,8 @@ export default{
         loadBatchSize: 20, // 每次加载数量
         isLoadingMore: false,
         layoutTimer: null,  // 布局防抖定时器
-        isFirstLoad: true   // 是否首次加载
+        isFirstLoad: true,  // 是否首次加载
+        showScrollTop: false   // 回到顶部按钮显示状态
         }
     },
     mounted(){
@@ -90,6 +91,10 @@ export default{
       // 添加滚动监听
       this._scrollHandler = () => {
         if (this.isLoadingMore) return;
+        
+        // 检查是否应该显示返回顶部按钮
+        this.showScrollTop = window.scrollY > 200;
+        
         const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
         const windowHeight = window.innerHeight;
         const documentHeight = document.documentElement.scrollHeight;
@@ -106,14 +111,12 @@ export default{
     },
     beforeUnmount(){
       if (this._docClickHandler) document.removeEventListener('click', this._docClickHandler);
-      window.removeEventListener('resize', this.calculateBreakpoints);
-      imageLoadManager.disconnect();
-    },
-    beforeUnmount(){
       if (this._resizeHandler) window.removeEventListener('resize', this._resizeHandler);
       if (this._scrollHandler) window.removeEventListener('scroll', this._scrollHandler);
+      window.removeEventListener('resize', this.calculateBreakpoints);
       if (this.resizeTimer) clearTimeout(this.resizeTimer);
       if (this.layoutTimer) clearTimeout(this.layoutTimer);
+      imageLoadManager.disconnect();
     },
     methods:{
       async extractMediaCover(fileUrl) {
@@ -501,7 +504,8 @@ export default{
       this.doDownload(index);
     },
     doCopy(e) {
-        this.$copyText(this.file_info[e].link).then(()=>{
+        const fullUrl = new URL(this.file_info[e].link, window.location.origin).toString();
+        this.$copyText(fullUrl).then(()=>{
           mdui.snackbar('复制成功')
         },()=>{
           mdui.snackbar('复制失败')
@@ -510,8 +514,9 @@ export default{
     doDownload(e) {
       const item = this.file_info[e];
       if (!item) return;
+      const fullUrl = new URL(item.link, window.location.origin).toString();
       const link = document.createElement('a');
-      link.href = item.link;
+      link.href = fullUrl;
       link.download = item.name || 'download';
       link.target = '_blank';
       document.body.appendChild(link);
@@ -521,7 +526,6 @@ export default{
     doDelete(e) {
       const item = this.file_info[e];
       if (!item) return;
-      // 从 link 中提取文件名 (link格式: /api/file/filename)
       const fileName = item.link ? item.link.split('/').pop() : item.name;
       if (!fileName) {
         mdui.alert('无法获取文件名');
@@ -1016,6 +1020,9 @@ export default{
         mdui.alert('图片加载失败');
       };
       img.src = imageUrl;
+    },
+    scrollToTop() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   },
   components:{
@@ -1046,14 +1053,14 @@ export default{
       </div>
     </div>
 
-    <div class="app-container">
+    <div class="app-container" v-if="file_info.length > 0">
       <header class="app-header">
         <div class="title">简洁图床</div>
-        <div class="actions">
-          <label class="upload-btn">
+        <div style="display: flex; gap: 8px;">
+          <button class="refresh-btn" @click="$refs.inp.click()" title="上传图片">
             <i class="mdui-icon material-icons">cloud_upload</i>
-            <input type="file" ref="inp" multiple @change="file" style="display:none" />
-          </label>
+          </button>
+          <input type="file" ref="inp" multiple @change="file" style="display:none" />
         </div>
       </header>
 
@@ -1196,28 +1203,199 @@ export default{
       </main>
 
       <footer class="app-footer">Powered by <a href="https://github.com/iiop123/workers-image-hosting">Workers-ImageHosting</a></footer>
+
+      <!-- 回到顶部按钮 -->
+      <Transition name="fade">
+        <button v-if="showScrollTop" class="scroll-top-btn" @click="scrollToTop" title="回到顶部">
+          <i class="mdui-icon material-icons">arrow_upward</i>
+        </button>
+      </Transition>
     </div>
   </div>
 </template>
 <style>
 @import 'https://cdn.jsdelivr.net/npm/viewerjs@1.11.1/dist/viewer.min.css';
-:root{box-sizing:border-box}
-*,*::before,*::after{box-sizing:inherit}
-html,body{width:100%;height:100%;margin:0;overflow-x:hidden;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;touch-action:manipulation}
-body{font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial}
 
-/* index.vue 特有样式 */
-.overlay{
-  background-color: rgba(0,0,0,.6);
+:root {
+  box-sizing: border-box
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: inherit
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  touch-action: manipulation
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial
+}
+
+.lazy__img[lazy=loading] {
+  padding: 5em 0;
+  width: 48px;
+}
+
+.lazy__img[lazy=loaded] {
+  width: 100%;
+}
+
+.lazy__img[lazy=error] {
+  padding: 5em 0;
+  width: 48px;
+}
+
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #f7f9fb;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #eceff1;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.refresh-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1976d2;
+  transition: all 0.3s ease;
+}
+
+.refresh-btn:hover {
+  background: #f0f0f0;
+  transform: rotate(180deg);
+}
+
+.refresh-btn .mdui-icon {
+  font-size: 24px;
+}
+
+.category-tag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #1976d2;
+  background: #e3f2fd;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1976d2;
+  font-size: 18px;
+  transition: all 0.2s
+}
+
+.icon-btn:hover {
+  color: #1565c0;
+  transform: scale(1.1)
+}
+
+.delete-btn {
+  color: #d32f2f !important;
+}
+
+.app-footer {
+  padding: 12px;
+  text-align: center;
+  color: #888;
+  font-size: 13px
+}
+
+/* 回到顶部按钮 */
+.scroll-top-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #1976d2;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+  transition: all 0.3s ease;
+  z-index: 1000;
+}
+
+.scroll-top-btn:hover {
+  background: #1565c0;
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(25, 118, 210, 0.5);
+}
+
+.scroll-top-btn .mdui-icon {
+  font-size: 24px;
+}
+
+/* 淡入淡出动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.9);
+}
+
+/* overlay drag */
+.overlay {
+  background-color: rgba(0, 0, 0, .6);
   z-index: 40;
   position: fixed;
   inset: 0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.drop_text{
-  border: 2px dashed rgba(255,255,255,0.9);
+
+.drop_text {
+  border: 2px dashed rgba(255, 255, 255, 0.9);
   border-radius: 12px;
   padding: 20px;
   color: #fff;
@@ -1226,74 +1404,83 @@ body{font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvet
   max-width: 75%;
 }
 
-.app-container{
-  min-height:100vh;
-  display:flex;
-  flex-direction:column;
-  background: #f7f9fb;
-  max-width:100%;
-  overflow-x:hidden;
-}
-.app-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding: 12px 16px;
-  background: #fff;
-  border-bottom: 1px solid #eceff1;
-}
-.title{
-  font-size:18px;
-  font-weight:600;
-}
-.upload-btn{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  cursor:pointer;
-  padding:8px 12px;
-  border-radius:8px;
-  background: #1976d2;
-  color:#fff;
-}
-.upload-btn i{font-size:20px}
-.app-footer{padding:12px;text-align:center;color:#888;font-size:13px}
-
 /* empty state: centered big upload button */
-.empty-state{
+.empty-state {
   position: absolute;
   inset: 0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 20;
   pointer-events: none;
 }
-.empty-inner{pointer-events: auto; text-align:center}
-.big-upload-btn{
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
+
+.empty-inner {
+  pointer-events: auto;
+  text-align: center
+}
+
+.big-upload-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 220px;
   height: 220px;
   border-radius: 16px;
-  border: 2px dashed rgba(0,0,0,0.08);
+  border: 2px dashed rgba(0, 0, 0, 0.08);
   background: #ffffff;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
-  cursor:pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
 }
-.big-upload-btn .mdui-icon{font-size:48px;color:#1976d2}
-.big-upload-btn .btn-text{margin-top:12px;color:#333;font-size:14px}
+
+.big-upload-btn .mdui-icon {
+  font-size: 48px;
+  color: #1976d2
+}
+
+.big-upload-btn .btn-text {
+  margin-top: 12px;
+  color: #333;
+  font-size: 14px
+}
 
 /* responsive adjustments */
-@media (max-width:600px){
-  .title{font-size:16px}
-  .upload-btn{padding:10px}
-  .drop_text{font-size:14px}
-  .mdui-btn{padding:2px 6px !important;font-size:10px !important;min-width:auto !important}
-  .app-header{position:sticky;top:0;z-index:60;background:#fff}
-  .big-upload-btn{width:180px;height:180px;border-radius:12px}
-  .big-upload-btn .mdui-icon{font-size:40px}
+@media (max-width: 600px) {
+  .title {
+    font-size: 16px
+  }
+
+  .scroll-top-btn {
+    width: 48px;
+    height: 48px;
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .scroll-top-btn .mdui-icon {
+    font-size: 20px;
+  }
+
+  .big-upload-btn {
+    width: 180px;
+    height: 180px;
+    border-radius: 12px;
+  }
+
+  .big-upload-btn .mdui-icon {
+    font-size: 40px
+  }
+
+  .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    background: #fff
+  }
+
+  .category-tag span {
+    display: none
+  }
 }
 </style>

@@ -958,7 +958,8 @@ export default {
       const deleteBtn = modal.querySelector('[data-action="delete"]');
 
       copyBtn.addEventListener('click', () => {
-        this.$copyText(`${window.location.origin}${fileUrl}`).then(() => {
+        const fullUrl = new URL(fileUrl, window.location.origin).toString();
+        this.$copyText(fullUrl).then(() => {
           mdui.snackbar('复制成功');
         }, () => {
           mdui.snackbar('复制失败');
@@ -966,8 +967,9 @@ export default {
       });
 
       downloadBtn.addEventListener('click', () => {
+        const fullUrl = new URL(fileUrl, window.location.origin).toString();
         const link = document.createElement('a');
-        link.href = fileUrl;
+        link.href = fullUrl;
         link.download = item.metadata.originalName || item.name;
         link.target = '_blank';
         document.body.appendChild(link);
@@ -1035,7 +1037,8 @@ export default {
     doCopy(e) {
       // mark actions active when copying from overlay
       if (this.list[e]) this.list[e]._actionsActive = true;
-      this.$copyText(`${window.location.origin}/api/file/${this.list[e].name}`).then(() => {
+      const fullUrl = new URL(`/api/file/${this.list[e].name}`, window.location.origin).toString();
+      this.$copyText(fullUrl).then(() => {
         mdui.snackbar('复制成功')
       }, () => {
         mdui.snackbar('复制失败')
@@ -1044,8 +1047,9 @@ export default {
     doDownload(e) {
       const item = this.list[e];
       const url = `/api/file/${item.name}`;
+      const fullUrl = new URL(url, window.location.origin).toString();
       const link = document.createElement('a');
-      link.href = url;
+      link.href = fullUrl;
       link.download = item.metadata.originalName || item.name;
       link.target = '_blank';
       document.body.appendChild(link);
