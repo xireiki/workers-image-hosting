@@ -1361,7 +1361,7 @@ export default {
       </main>
 
       <footer class="app-footer">Powered by <a
-          href="https://github.com/iiop123/workers-image-hosting">Workers-ImageHosting</a></footer>
+          href="https://github.com/xireiki/workers-image-hosting">Workers-ImageHosting</a></footer>
 
       <!-- 回到顶部按钮 -->
       <Transition name="fade">
